@@ -7,7 +7,8 @@
     "github-code-stats": "index.js"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node -r dotenv/config index.js"
   },
   "dependencies": {
     "axios": "^1.9.0",

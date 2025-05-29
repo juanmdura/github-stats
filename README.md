@@ -27,7 +27,22 @@ This tool calculates total lines of code modified (additions and deletions) acro
    npm install
    ```
 
-2. Set up your GitHub token in the script or as an environment variable.
+2. Set up your GitHub token as an environment variable:
+   ```bash
+   # For macOS/Linux
+   export GITHUB_TOKEN=your_personal_access_token
+   
+   # For Windows Command Prompt
+   set GITHUB_TOKEN=your_personal_access_token
+   
+   # For Windows PowerShell
+   $env:GITHUB_TOKEN = "your_personal_access_token"
+   ```
+
+3. Optionally, set a default organization:
+   ```bash
+   export GITHUB_ORG=your_organization_name
+   ```
 
 ## Usage
 

@@ -7,16 +7,28 @@
  * including team-specific contributions and AI-assisted code detection
  */
 
+// Load environment variables from .env file if present
+try {
+  require('dotenv').config();
+} catch (error) {
+  console.log('Note: No .env file found. Using environment variables directly.');
+}
+
 const core = require('./github-stats-core');
 const { DEFAULT_TARGET_TEAMS, parseArgs } = require('./get-org-code-stats');
 
 // Parse command line arguments
 const args = parseArgs();
 
-// IMPORTANT: Replace this token with your personal access token that has the 'repo' scope
-// Create a new token at: https://github.com/settings/tokens
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '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';
-const ORG = args.org || 'Zubale'; // replace with your organization name
+// IMPORTANT: Use environment variables for sensitive information
+// Create a new token at: https://github.com/settings/tokens and set as GITHUB_TOKEN environment variable
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+if (!GITHUB_TOKEN) {
+  console.error('Error: GITHUB_TOKEN environment variable is required.');
+  console.error('Set it with: export GITHUB_TOKEN=your_token_here');
+  process.exit(1);
+}
+const ORG = args.org || process.env.GITHUB_ORG; // Set default org via GITHUB_ORG environment variable
 
 // Date range filter (format: YYYY-MM-DD)
 const START_DATE = args.startDate || process.env.START_DATE || null; // e.g., '2023-01-01'
