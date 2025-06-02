@@ -1,0 +1,204 @@
+{
+    "repositories": [
+        {
+            "repo": "Zubale/airflow-data-science",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/api-automation-consumer-connect",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/api-automation-enterprise-solutions",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/api-automation-flexifleet",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/api-automation-fulfillment",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/auth-service",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/batch_calculator",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/batchman",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/bpm-transactions",
+            "branch": "develop"
+        },
+        {
+            "repo": "Zubale/bulk_csv",
+            "branch": "master"
+        },
+        {
+            "repo": "Zubale/commerce-connect-handler",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/conductor",
+            "branch": "master"
+        },
+        {
+            "repo": "Zubale/control-tower",
+            "branch": "master"
+        },
+        {
+            "repo": "Zubale/control-tower-web",
+            "branch": "master"
+        },
+        {
+            "repo": "Zubale/crm_synch",
+            "branch": "master"
+        },
+        {
+            "repo": "Zubale/digital-supervisor-api",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/eslint-config",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/etas_monitoring",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/event-notification-handler",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/forms-webhook",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/helm-charts",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/hermes",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/integration-pnp",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/integration-transformer",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/karate-api-testing-template",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/mobile-tests",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/notification-handler",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/onboarding",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/orc",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/order-handler",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/orders-forecast",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/pay4me",
+            "branch": "master"
+        },
+        {
+            "repo": "Zubale/payment-processor",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/pr-title-bot",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/product-catalog",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/products_service",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/qa-api-library",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/qa-automation-api-test",
+            "branch": "develop"
+        },
+        {
+            "repo": "Zubale/qa-check-bot",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/qa-common-library",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/qa-load-tests",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/query-polygon",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/query_quest",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/quests",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/reservation-service",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/same_day_orders_forecast",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/soul-project",
+            "branch": "master"
+        },
+        {
+            "repo": "Zubale/store_suggestions",
+            "branch": "master"
+        },
+        {
+            "repo": "Zubale/supply-demand-actions",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/supply-demand-actions-core",
+            "branch": "main"
+        }
+    ]
+}

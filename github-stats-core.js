@@ -8,7 +8,6 @@ const utils = require('./get-org-code-stats.js');
 
 // Main function to run the stats collection
 async function collectStats(org, startDate, endDate, targetTeams, token) {
-  console.log('=== GitHub Organization Code Stats ===');
   console.log(`Organization: ${org}`);
   
   const headers = createHeaders(token);
@@ -30,10 +29,6 @@ async function collectStats(org, startDate, endDate, targetTeams, token) {
     console.log('No repositories found or accessible. Cannot calculate code stats.');
     return null;
   }
-  
-  console.log('\n=== Analysis Options ===');
-  console.log('- Analyzing code statistics with line tracking');
-  console.log('- Including Copilot suggestion detection');
   
   // Get teams and handle team filtering
   const teams = await getTeamsForAnalysis(org, targetTeams, headers);
@@ -126,7 +121,6 @@ async function verifyOrgAccess(org, headers) {
  * Get and display teams for filtering
  */
 async function getTeamsForAnalysis(org, targetTeams, headers) {
-  console.log('\n=== Team Filter ===');
   console.log('Filtering repositories by contributions from the following teams:');
   targetTeams.forEach(team => console.log(`- ${team}`));
   
@@ -198,6 +192,10 @@ async function filterPRsByTeamMembers(allMergedPRs, teams, org, headers) {
  */
 async function calculateCodeStats(org, teamFilteredPRs, headers) {
   console.log('\n=== Calculating code changes ===');
+  
+  // Get Copilot metrics for the organization to improve AI detection
+  const copilotMetrics = await utils.getCopilotMetrics(org, null, null, headers);
+  
   let totalAdditions = 0;
   let totalDeletions = 0;
   let totalAILines = 0;
@@ -212,11 +210,11 @@ async function calculateCodeStats(org, teamFilteredPRs, headers) {
       totalAdditions += details.additions;
       totalDeletions += details.deletions;
       
-      // STEP 4: Count lines of code modified with AI assistance
-      const aiAnalysis = await utils.analyzeAICodeInPR(org, pr.repo, details, headers);
+      // STEP 4: Count lines of code modified with AI assistance using enhanced detection
+      const aiAnalysis = await utils.analyzeAICodeInPR(org, pr.repo, details, headers, copilotMetrics);
       if (aiAnalysis.isAIAssisted) {
         totalAILines += aiAnalysis.aiLines;
-        console.log(`  PR #${details.number} (${details.title}) is AI-assisted: ${aiAnalysis.reason}`);
+        console.log(`  PR #${details.number} (${details.title}) is AI-assisted: ${aiAnalysis.reason} (~${aiAnalysis.aiLines} lines)`);
       }
     }
   }

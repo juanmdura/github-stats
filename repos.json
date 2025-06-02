@@ -1,0 +1,8 @@
+{
+    "repositories": [
+        {
+            "repo": "Zubale/control-tower",
+            "branch": "master"
+        }
+    ]
+}

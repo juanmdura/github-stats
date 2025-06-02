@@ -8,7 +8,8 @@ This tool calculates total lines of code modified (additions and deletions) acro
 - Sorts repositories by most recently pushed (descending order)
 - Supports date range filtering to analyze code changes within specific time periods
 - Filter repositories by team contributions (only analyze repos with contributors from specified teams)
-- Detects and reports GitHub Copilot suggestions (AI-assisted code)
+- Detects and reports GitHub Copilot suggestions (AI-assisted code) using GitHub's official Copilot metrics API
+- Enhanced AI detection with actual `total_code_lines_accepted` from GitHub Copilot metrics
 - Shows detailed statistics per repository
 - Automatically handles GitHub API pagination and rate limiting
 - Validates GitHub token permissions
@@ -19,6 +20,7 @@ This tool calculates total lines of code modified (additions and deletions) acro
 - A GitHub personal access token with the following scopes:
   - `repo` - For accessing repository data 
   - `read:org` - For accessing team membership information
+  - `copilot` - For accessing GitHub Copilot metrics (optional, for enhanced AI detection)
 
 ## Setup
 

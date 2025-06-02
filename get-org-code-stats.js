@@ -7,20 +7,14 @@ const axios = require('axios');
 
 // Define the default teams we want to filter by
 const DEFAULT_TARGET_TEAMS = [
-  'Consumer Connect',
-  'Core Engineering',
-  'Data Science',
-  'Enterprise Solutions',
-  'Flexifleet',
-  'Fulfillment',
-  'QA Automation'
+  'Engineering'
 ];
 
 // Parse command line arguments
 function parseArgs() {
   const args = process.argv.slice(2);
   const params = {};
-  
+
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--from' && i + 1 < args.length) {
       params.startDate = args[i + 1];
@@ -60,7 +54,7 @@ Examples:
       process.exit(0);
     }
   }
-  
+
   return params;
 }
 
@@ -75,14 +69,14 @@ async function checkToken(headers) {
     const response = await axios.get('https://api.github.com/user', { headers });
     console.log('✅ Token validation successful');
     console.log(`Authenticated as: ${response.data.login}`);
-    
+
     // Check token scopes
     if (response.headers && response.headers['x-oauth-scopes']) {
       console.log(`Token scopes: ${response.headers['x-oauth-scopes']}`);
     } else {
       console.log('Unable to determine token scopes');
     }
-    
+
     return true;
   } catch (error) {
     console.error('❌ Token validation failed:', error.message);
@@ -95,156 +89,135 @@ async function checkToken(headers) {
 }
 
 async function getAllRepos(org, headers) {
-  let page = 1;
-  let repos = [];
+  const fs = require('fs');
+  const path = require('path');
 
   try {
-    // First try the direct organization endpoint
-    console.log(`Fetching repositories for ${org} using organization endpoint...`);
-    while (true) {
-      console.log(`Fetching page ${page} from org API...`);
-      const url = `https://api.github.com/orgs/${org}/repos?per_page=100&page=${page}`;
-      
-      // Log the headers being sent (without showing the full token)
-      const authHeader = headers.Authorization || '';
-      const token = authHeader.replace('Bearer ', '');
-      const tokenForDisplay = token ? `${token.substring(0, 5)}...${token.substring(token.length - 5)}` : 'undefined';
-      
-      const res = await axios.get(url, { headers });
-      
-      if (res.data.length === 0) {
-        console.log(`No more repositories found on page ${page}`);
-        break;
-      }
-      
-      console.log(`Found ${res.data.length} repositories on page ${page}`);
-      repos = repos.concat(res.data.map(r => ({
-        name: r.name,
-        visibility: r.private ? 'private' : 'public',
-        pushed_at: r.pushed_at // Store the pushed_at date for sorting
-      })));
-      page++;
-    }
-    
-    // If no repos found through org API, try the user's repositories that belong to this org
-    if (repos.length === 0) {
-      console.log(`\nTrying alternative method: fetching user's repositories that belong to ${org}...`);
-      page = 1;
-      
-      while (true) {
-        const url = `https://api.github.com/user/repos?per_page=100&page=${page}&affiliation=owner,organization_member`;
-        const res = await axios.get(url, { headers });
-        
-        if (res.data.length === 0) break;
-        
-        // Filter only repos from the specified org
-        const orgRepos = res.data
-          .filter(repo => repo.owner.login === org || (repo.organization && repo.organization.login === org))
-          .map(r => ({
-            name: r.name,
-            visibility: r.private ? 'private' : 'public',
-            pushed_at: r.pushed_at // Store the pushed_at date for sorting
-          }));
-        
-        if (orgRepos.length > 0) {
-          console.log(`Found ${orgRepos.length} repositories from org ${org} on page ${page}`);
-          repos = repos.concat(orgRepos);
-        }
-        
-        page++;
-      }
-    }
-    
-    if (repos.length === 0) {
-      console.log('\n=== No repositories found ===');
-      console.log('Possible reasons:');
-      console.log('1. Your token does not have access to this organization');
-      console.log('2. The organization name is incorrect');
-      console.log('3. The organization has no repositories');
-      console.log('4. All repositories are private and require special access');
+    console.log(`Loading repositories for ${org} from repos.json file...`);
+
+    // Read the repos.json file
+    const reposFilePath = path.join(__dirname, 'repos.json');
+    const reposData = JSON.parse(fs.readFileSync(reposFilePath, 'utf8'));
+
+    if (!reposData.repositories || !Array.isArray(reposData.repositories)) {
+      console.error('Invalid repos.json format: missing "repositories" array');
       return [];
-    } else {
-      // Sort repositories by most recently pushed (descending order)
-      repos.sort((a, b) => {
-        return new Date(b.pushed_at) - new Date(a.pushed_at);
-      });
-      
-      console.log(`\nFound ${repos.length} total repositories in ${org} (sorted by most recently pushed):`);
-      repos.forEach(r => {
-        const pushedDate = new Date(r.pushed_at).toISOString().split('T')[0];
-        console.log(`- ${r.name} (${r.visibility}) - Last pushed: ${pushedDate}`);
-      });
-      
-      return repos.map(r => r.name);
     }
+
+    // Filter repositories that belong to the specified organization
+    const orgRepos = reposData.repositories.filter(item => {
+      const [repoOrg] = item.repo.split('/');
+      return repoOrg === org;
+    });
+
+    if (orgRepos.length === 0) {
+      console.log(`\n=== No repositories found for organization "${org}" ===`);
+      console.log('Make sure the repos.json file contains repositories for this organization.');
+      return [];
+    }
+
+    console.log(`\nFound ${orgRepos.length} repositories for ${org} in repos.json:`);
+    orgRepos.forEach(item => {
+      const [, repoName] = item.repo.split('/');
+      console.log(`- ${repoName} (branch: ${item.branch})`);
+    });
+
+    // Return just the repository names (without org prefix) for compatibility
+    return orgRepos.map(item => {
+      const [, repoName] = item.repo.split('/');
+      return repoName;
+    });
+
   } catch (error) {
-    console.error('Error fetching repositories:', error.message);
-    if (error.response) {
-      console.error(`Status: ${error.response.status}`);
-      console.error('Response data:', error.response.data);
+    if (error.code === 'ENOENT') {
+      console.error('Error: repos.json file not found. Please create the file with your repository list.');
+    } else if (error instanceof SyntaxError) {
+      console.error('Error: Invalid JSON format in repos.json file.');
+    } else {
+      console.error('Error reading repositories from repos.json:', error.message);
     }
     return [];
   }
 }
 
-// Analyze a commit to determine if it likely contains Copilot suggestions
-function analyzeCommitForCopilot(commit) {
-  // Check for common patterns in commit messages
-  const message = commit.commit.message.toLowerCase();
-  
-  const copilotKeywords = [
-    'copilot', 
-    'ai suggestion', 
-    'ai assist',
-    'suggested by ai', 
-    'code suggestion',
-    'github copilot',
-    'ai-generated',
-    'ai-assisted',
-    'ai generated',
-    'ai assisted'
-  ];
-  
-  for (const keyword of copilotKeywords) {
-    if (message.includes(keyword)) {
+// Get Copilot metrics for an organization using the GitHub API
+async function getCopilotMetrics(org, startDate, endDate, headers) {
+  try {
+    const url = `https://api.github.com/orgs/${org}/copilot/metrics`;
+    const params = {};
+
+    // Add date filters if provided
+    if (startDate) {
+      params.since = startDate;
+    }
+    if (endDate) {
+      params.until = endDate;
+    }
+
+    const response = await axios.get(url, { headers, params });
+
+    // Extract total code lines accepted from the metrics
+    const metrics = response.data;
+    let totalCodeLinesAccepted = 0;
+
+    // The API returns metrics in different formats, handle both daily and summary formats
+    if (metrics && Array.isArray(metrics)) {
+      // Daily metrics format
+      totalCodeLinesAccepted = metrics.reduce((total, dayMetric) => {
+        return total + (dayMetric.total_code_lines_accepted || 0);
+      }, 0);
+    } else if (metrics && metrics.total_code_lines_accepted) {
+      // Summary format
+      totalCodeLinesAccepted = metrics.total_code_lines_accepted;
+    }
+
+    console.log(`📊 GitHub Copilot metrics for ${org}: ${totalCodeLinesAccepted} lines accepted`);
+
+    return {
+      totalCodeLinesAccepted,
+      success: true
+    };
+  } catch (error) {
+    console.warn(`⚠️ Unable to fetch Copilot metrics: ${error.message}`);
+    if (error.response && error.response.status === 403) {
+      console.warn('Token may need "copilot" scope to access Copilot metrics');
+    }
+    return {
+      totalCodeLinesAccepted: 0,
+      success: false
+    };
+  }
+}
+
+// Analyze a commit using Copilot metrics data
+function analyzeCommitForCopilot(commit, copilotMetrics = null) {
+  // Only use actual Copilot metrics data if available
+  if (copilotMetrics && copilotMetrics.success && copilotMetrics.totalCodeLinesAccepted > 0) {
+    if (commit.stats && commit.stats.additions > 0) {
+      // Estimate based on the ratio of Copilot lines to total additions
+      const estimatedCopilotRatio = Math.min(0.7, copilotMetrics.totalCodeLinesAccepted / (commit.stats.additions * 10));
+
       return {
         isCopilot: true,
         confidence: 'high',
-        reason: `Commit message contains "${keyword}"`
+        reason: 'Based on GitHub Copilot metrics API',
+        estimatedCopilotLines: Math.round(commit.stats.additions * estimatedCopilotRatio)
       };
     }
   }
-  
-  // Check for patterns in commit authorship
-  if (commit.commit.author && commit.commit.author.email) {
-    const email = commit.commit.author.email.toLowerCase();
-    if (email.includes('copilot') || email.includes('noreply') || email.includes('automated')) {
-      return {
-        isCopilot: true, 
-        confidence: 'medium',
-        reason: 'Commit author email suggests automation'
-      };
-    }
-  }
-  
-  // Check for common Copilot commit patterns (typically large additions in single commits)
-  if (commit.stats && commit.stats.additions > 100 && commit.stats.deletions < 10) {
-    return {
-      isCopilot: true,
-      confidence: 'low',
-      reason: 'Large code addition with few deletions (typical Copilot pattern)'
-    };
-  }
-  
-  return { isCopilot: false };
+
+  return {
+    isCopilot: false,
+    estimatedCopilotLines: 0
+  };
 }
 
 async function getRepoStats(org, repo, startDate, endDate, headers) {
   const url = `https://api.github.com/repos/${org}/${repo}/stats/contributors`;
-  
+
   try {
     const res = await axios.get(url, { headers });
-    
+
     // Check for rate limiting
     if (res.headers['x-ratelimit-remaining']) {
       const remaining = res.headers['x-ratelimit-remaining'];
@@ -258,11 +231,14 @@ async function getRepoStats(org, repo, startDate, endDate, headers) {
       console.log(`  GitHub is computing stats for ${repo}...`);
       return null;
     }
-    
+
     if (res.data.length === 0) {
       console.log(`  No contributors data found for ${repo}`);
       return { additions: 0, deletions: 0, copilotLines: 0 };
     }
+
+    // Get Copilot metrics for better AI code estimation
+    const copilotMetrics = await getCopilotMetrics(org, startDate, endDate, headers);
 
     // Convert date strings to timestamps for comparison
     const startTimestamp = startDate ? new Date(startDate).getTime() / 1000 : null;
@@ -283,19 +259,19 @@ async function getRepoStats(org, repo, startDate, endDate, headers) {
           per_page: 100
         }
       };
-      
+
       if (startTimestamp) {
         const startDate = new Date(startTimestamp * 1000).toISOString();
         commitParams.params.since = startDate;
       }
-      
+
       if (endTimestamp) {
         const endDate = new Date(endTimestamp * 1000).toISOString();
         commitParams.params.until = endDate;
       }
-      
+
       commitRes = await axios.get(commitUrl, commitParams);
-      
+
       // For each commit, get more detailed info to analyze
       const detailedCommits = [];
       for (const commit of commitRes.data.slice(0, 10)) { // Analyze up to 10 recent commits
@@ -307,13 +283,16 @@ async function getRepoStats(org, repo, startDate, endDate, headers) {
           // Skip this commit if details can't be fetched
         }
       }
-      
-      // Identify commits that might be from Copilot using our analyzer
+
+      // Identify commits that might be from Copilot using our enhanced analyzer
       copilotData = detailedCommits.filter(commit => {
-        const analysis = analyzeCommitForCopilot(commit);
+        const analysis = analyzeCommitForCopilot(commit, copilotMetrics);
+        if (analysis.isCopilot) {
+          copilotLines += analysis.estimatedCopilotLines || 0;
+        }
         return analysis.isCopilot;
       });
-      
+
     } catch (error) {
       console.log(`  Unable to fetch commit data for Copilot analysis: ${error.message}`);
     }
@@ -323,12 +302,12 @@ async function getRepoStats(org, repo, startDate, endDate, headers) {
         console.log(`  Missing weeks data for a contributor in ${repo}`);
         return;
       }
-      
+
       contributor.weeks.forEach(week => {
         totalWeeks++;
         // Each week entry has a 'w' field with a Unix timestamp
         const weekTimestamp = week.w;
-        
+
         // Apply date filtering if specified
         if (
           (startTimestamp === null || weekTimestamp >= startTimestamp) &&
@@ -340,14 +319,21 @@ async function getRepoStats(org, repo, startDate, endDate, headers) {
         }
       });
     });
-    
-    // Estimate Copilot contribution if we have commit data
+
+    // If we have organization-level Copilot metrics but no commit-level data,
+    // estimate based on the total metrics
+    if (copilotMetrics.success && copilotLines === 0 && (additions + deletions) > 0) {
+      // Rough estimation based on organization-wide Copilot usage
+      const totalOrgLines = additions + deletions;
+      const estimatedCopilotRatio = Math.min(0.4, copilotMetrics.totalCodeLinesAccepted / (totalOrgLines * 5));
+      copilotLines = Math.round(totalOrgLines * estimatedCopilotRatio);
+    }
+
+    // Report Copilot analysis results
     if (copilotData && copilotData.length > 0) {
-      // Rough estimation - assumes equal distribution of lines across commits
-      // and that Copilot commits have similar line counts to other commits
-      const copilotCommitPercent = copilotData.length / (commitRes?.data?.length || 1);
-      copilotLines = Math.round((additions + deletions) * copilotCommitPercent);
-      console.log(`  🤖 Found ${copilotData.length} potential Copilot-suggested commits`);
+      console.log(`  🤖 Found ${copilotData.length} potential Copilot-suggested commits with ~${copilotLines} lines`);
+    } else if (copilotMetrics.success) {
+      console.log(`  🤖 Estimated ~${copilotLines} Copilot-assisted lines based on org metrics`);
     }
 
     // Report if date filtering was applied
@@ -356,7 +342,7 @@ async function getRepoStats(org, repo, startDate, endDate, headers) {
         startDate ? `from ${startDate}` : '',
         endDate ? `to ${endDate}` : ''
       ].filter(Boolean).join(' ');
-      
+
       console.log(`  📅 Date filtering: ${dateRange}`);
       console.log(`  📊 Analyzing ${filteredWeeks} weeks out of ${totalWeeks} total weeks`);
     }
@@ -380,13 +366,13 @@ async function getOrgTeams(org, targetTeams, headers) {
     console.log(`\nFetching teams for organization ${org}...`);
     const teamsUrl = `https://api.github.com/orgs/${org}/teams`;
     const response = await axios.get(teamsUrl, { headers });
-    
-    const teams = response.data.filter(team => 
-      targetTeams.some(targetTeam => 
+
+    const teams = response.data.filter(team =>
+      targetTeams.some(targetTeam =>
         team.name.toLowerCase().includes(targetTeam.toLowerCase())
       )
     );
-    
+
     console.log(`Found ${teams.length} matching teams out of ${response.data.length} total teams`);
     return teams;
   } catch (error) {
@@ -407,12 +393,12 @@ async function getTeamMembers(teamSlug, org, headers) {
   if (teamMembersCache.has(cacheKey)) {
     return teamMembersCache.get(cacheKey);
   }
-  
+
   try {
     const url = `https://api.github.com/orgs/${org}/teams/${teamSlug}/members`;
     const response = await axios.get(url, { headers });
     const members = response.data.map(member => member.login);
-    
+
     teamMembersCache.set(cacheKey, members);
     return members;
   } catch (error) {
@@ -448,19 +434,19 @@ async function getRepoContributors(org, repo, headers) {
 async function checkRepoTeamContribution(org, repo, teams, headers) {
   console.log(`  Checking if ${repo} has contributors from target teams...`);
   const contributors = await getRepoContributors(org, repo, headers);
-  
+
   if (contributors.length === 0) {
     console.log(`  No contributors found for ${repo}`);
     return false;
   }
-  
+
   for (const contributor of contributors) {
     if (await isUserInTargetTeams(contributor, teams, org, headers)) {
       console.log(`  ✅ Repository ${repo} has contributors from target teams`);
       return true;
     }
   }
-  
+
   console.log(`  ❌ No contributors from target teams found for ${repo}`);
   return false;
 }
@@ -484,34 +470,34 @@ async function getRepoMergedPRs(org, repo, startDate, endDate, headers) {
 
     while (hasMorePages) {
       try {
-        const response = await axios.get(url, { 
-          headers, 
+        const response = await axios.get(url, {
+          headers,
           params: { ...params, page }
         });
-        
+
         // Filter merged PRs within the date range
         const prs = response.data.filter(pr => {
           // Only consider merged PRs (closed PRs with merge_commit_sha)
           if (!pr.merged_at) return false;
-          
+
           const mergedDate = new Date(pr.merged_at);
-          
+
           // Apply date filter if specified
           const afterStartDate = !startDate || mergedDate >= new Date(startDate);
           const beforeEndDate = !endDate || mergedDate <= new Date(endDate);
-          
+
           return afterStartDate && beforeEndDate;
         });
-        
+
         if (prs.length > 0) {
           allPRs = allPRs.concat(prs);
           console.log(`    Found ${prs.length} merged PRs on page ${page}`);
         }
-        
+
         // Check if there are more pages of results
         hasMorePages = response.data.length === params.per_page;
         page++;
-        
+
         // Stop if we've gone beyond our date range
         if (response.data.length > 0) {
           const oldestPRDate = new Date(response.data[response.data.length - 1].updated_at);
@@ -524,7 +510,7 @@ async function getRepoMergedPRs(org, repo, startDate, endDate, headers) {
         hasMorePages = false;
       }
     }
-    
+
     console.log(`  ✅ Found ${allPRs.length} total merged PRs for ${repo} in the specified date range`);
     return allPRs;
   } catch (error) {
@@ -538,19 +524,19 @@ async function getPRDetails(org, repo, prNumber, headers) {
   try {
     const url = `https://api.github.com/repos/${org}/${repo}/pulls/${prNumber}`;
     const response = await axios.get(url, { headers });
-    
+
     // Now get the files changed in this PR
     const filesUrl = `${url}/files`;
     const filesResponse = await axios.get(filesUrl, { headers });
-    
+
     let additions = 0;
     let deletions = 0;
-    
+
     filesResponse.data.forEach(file => {
       additions += file.additions || 0;
       deletions += file.deletions || 0;
     });
-    
+
     return {
       number: prNumber,
       additions,
@@ -568,72 +554,29 @@ async function getPRDetails(org, repo, prNumber, headers) {
   }
 }
 
-// Analyze a PR to determine if it contains AI-assisted code
-async function analyzeAICodeInPR(org, repo, pr, headers) {
+// Analyze a PR to determine if it contains AI-assisted code using Copilot metrics
+async function analyzeAICodeInPR(org, repo, pr, headers, copilotMetrics = null) {
   try {
-    // Check PR title and description for AI indicators
-    const hasCopilotKeywords = pr => {
-      const copilotKeywords = [
-        'copilot', 'ai suggestion', 'ai assist', 'suggested by ai',
-        'code suggestion', 'github copilot', 'ai-generated', 
-        'ai-assisted', 'ai generated', 'ai assisted'
-      ];
-      
-      const title = pr.title ? pr.title.toLowerCase() : '';
-      const body = pr.body ? pr.body.toLowerCase() : '';
-      
-      for (const keyword of copilotKeywords) {
-        if (title.includes(keyword) || body.includes(keyword)) {
-          return true;
-        }
-      }
-      return false;
-    };
-    
-    // Get commit information for the PR
+    // Only use actual Copilot metrics data for AI detection
     let aiAssisted = false;
     let aiLinesEstimate = 0;
     let reason = '';
-    
-    if (pr.mergeCommitSha) {
+
+    if (pr.mergeCommitSha && copilotMetrics && copilotMetrics.success) {
       // Get detailed commit info
       const commitUrl = `https://api.github.com/repos/${org}/${repo}/commits/${pr.mergeCommitSha}`;
       const commitDetails = await axios.get(commitUrl, { headers });
-      
-      // Check if commit message indicates AI usage
-      const commitMsg = commitDetails.data.commit.message.toLowerCase();
-      const hasAIKeywordsInCommit = commitMsg.includes('copilot') || 
-                                   commitMsg.includes('ai suggestion') || 
-                                   commitMsg.includes('ai-generated') ||
-                                   commitMsg.includes('ai assisted');
-      
-      if (hasAIKeywordsInCommit) {
+
+      // Use the enhanced analyzeCommitForCopilot function
+      const commitAnalysis = analyzeCommitForCopilot(commitDetails.data, copilotMetrics);
+
+      if (commitAnalysis.isCopilot) {
         aiAssisted = true;
-        reason = 'AI keywords in commit message';
-      } else if (hasCopilotKeywords(pr)) {
-        aiAssisted = true;
-        reason = 'AI keywords in PR title or description';
-      }
-      
-      // If the PR appears to be AI-assisted, estimate how many lines were AI-generated
-      if (aiAssisted) {
-        // Conservative estimate: large PRs with many additions are likely to have more AI code
-        const totalLines = pr.additions + pr.deletions;
-        
-        // Different heuristics based on PR size
-        if (totalLines > 500) {
-          // For large PRs with AI indicators, estimate 70% AI contribution
-          aiLinesEstimate = Math.round(totalLines * 0.7);
-        } else if (totalLines > 100) {
-          // For medium PRs with AI indicators, estimate 50% AI contribution
-          aiLinesEstimate = Math.round(totalLines * 0.5);
-        } else {
-          // For smaller PRs with AI indicators, estimate 30% AI contribution
-          aiLinesEstimate = Math.round(totalLines * 0.3);
-        }
+        reason = commitAnalysis.reason;
+        aiLinesEstimate = commitAnalysis.estimatedCopilotLines || 0;
       }
     }
-    
+
     return {
       isAIAssisted: aiAssisted,
       aiLines: aiLinesEstimate,
@@ -645,6 +588,29 @@ async function analyzeAICodeInPR(org, repo, pr, headers) {
   }
 }
 
+// Get the branch for a specific repository from repos.json
+function getRepoBranch(org, repoName) {
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const reposFilePath = path.join(__dirname, 'repos.json');
+    const reposData = JSON.parse(fs.readFileSync(reposFilePath, 'utf8'));
+
+    if (!reposData.repositories || !Array.isArray(reposData.repositories)) {
+      return 'main'; // Default fallback
+    }
+
+    const fullRepoName = `${org}/${repoName}`;
+    const repoInfo = reposData.repositories.find(item => item.repo === fullRepoName);
+
+    return repoInfo ? repoInfo.branch : 'main'; // Default to 'main' if not found
+  } catch (error) {
+    console.warn(`Warning: Could not read branch info for ${org}/${repoName}, defaulting to 'main'`);
+    return 'main';
+  }
+}
+
 // Export all utility functions for use in github-stats-core.js
 module.exports = {
   DEFAULT_TARGET_TEAMS,
@@ -652,6 +618,7 @@ module.exports = {
   validateDate,
   checkToken,
   getAllRepos,
+  getCopilotMetrics,
   analyzeCommitForCopilot,
   getRepoStats,
   getOrgTeams,
@@ -661,5 +628,6 @@ module.exports = {
   checkRepoTeamContribution,
   getRepoMergedPRs,
   getPRDetails,
-  analyzeAICodeInPR
+  analyzeAICodeInPR,
+  getRepoBranch
 };
