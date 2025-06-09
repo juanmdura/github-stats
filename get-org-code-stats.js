@@ -833,13 +833,140 @@ async function calculateTeamDailyStats(org, teams, startDate, endDate, headers) 
       });
     }
 
-    // Note: For total code lines, we would need to aggregate commit data from all repositories
-    // This is a simplified version - in a full implementation, you'd iterate through all repos
-    // and calculate daily contributions by team members
-    console.log(`  Team ${team.name}: ${teamStats[team.name].totalCopilotLines} total Copilot lines`);
+    // Calculate actual code lines by analyzing commits from team members
+    console.log(`  Calculating code contributions by team members...`);
+    const teamDailyCommits = await getTeamDailyCommits(org, team, members, startDate, endDate, headers);
+
+    // Merge commit data with daily stats
+    Object.entries(teamDailyCommits).forEach(([date, stats]) => {
+      if (!teamStats[team.name].dailyStats[date]) {
+        teamStats[team.name].dailyStats[date] = {
+          date,
+          totalCodeLines: stats.totalLines,
+          copilotLines: 0
+        };
+      } else {
+        teamStats[team.name].dailyStats[date].totalCodeLines = stats.totalLines;
+      }
+      teamStats[team.name].totalCodeLines += stats.totalLines;
+    });
+
+    console.log(`  Team ${team.name}: ${teamStats[team.name].totalCodeLines} total code lines, ${teamStats[team.name].totalCopilotLines} total Copilot lines`);
   }
 
   return teamStats;
+}
+
+// Get daily commit statistics for team members across all repositories
+async function getTeamDailyCommits(org, team, members, startDate, endDate, headers) {
+  const dailyStats = {};
+
+  try {
+    // Get all repositories to analyze
+    const allRepos = await getAllRepos(org, headers);
+
+    for (const repo of allRepos) {
+      console.log(`    Analyzing commits in ${repo}...`);
+
+      // Get commits from this repository within the date range
+      const repoCommits = await getRepoCommitsForTeam(org, repo, members, startDate, endDate, headers);
+
+      // Aggregate daily statistics
+      repoCommits.forEach(commit => {
+        const date = commit.date;
+        if (!dailyStats[date]) {
+          dailyStats[date] = {
+            totalLines: 0,
+            commits: 0
+          };
+        }
+        dailyStats[date].totalLines += commit.additions + commit.deletions;
+        dailyStats[date].commits += 1;
+      });
+    }
+  } catch (error) {
+    console.warn(`    ⚠️ Error calculating team commits: ${error.message}`);
+  }
+
+  return dailyStats;
+}
+
+// Get commits from a repository filtered by team members and date range
+async function getRepoCommitsForTeam(org, repo, teamMembers, startDate, endDate, headers) {
+  try {
+    const url = `https://api.github.com/repos/${org}/${repo}/commits`;
+    const params = {
+      per_page: 100
+    };
+
+    // Add date filters in ISO format for GitHub API
+    if (startDate) {
+      params.since = new Date(startDate).toISOString();
+    }
+    if (endDate) {
+      // End of day for the end date
+      const endDateTime = new Date(endDate);
+      endDateTime.setHours(23, 59, 59, 999);
+      params.until = endDateTime.toISOString();
+    }
+
+    const commits = [];
+    let page = 1;
+    let hasMorePages = true;
+
+    while (hasMorePages && page <= 5) { // Limit to 5 pages to avoid too many API calls
+      try {
+        const response = await axios.get(url, {
+          headers,
+          params: { ...params, page }
+        });
+
+        if (response.data.length === 0) {
+          hasMorePages = false;
+          break;
+        }
+
+        // Filter commits by team members and get detailed stats
+        for (const commit of response.data) {
+          const author = commit.author ? commit.author.login : commit.commit.author.email;
+
+          // Check if commit author is in the team
+          if (teamMembers.includes(author)) {
+            try {
+              // Get detailed commit info to get line changes
+              const detailUrl = `https://api.github.com/repos/${org}/${repo}/commits/${commit.sha}`;
+              const detailResponse = await axios.get(detailUrl, { headers });
+
+              const commitDate = commit.commit.author.date.split('T')[0]; // Extract YYYY-MM-DD
+
+              commits.push({
+                sha: commit.sha,
+                author: author,
+                date: commitDate,
+                additions: detailResponse.data.stats ? detailResponse.data.stats.additions : 0,
+                deletions: detailResponse.data.stats ? detailResponse.data.stats.deletions : 0,
+                message: commit.commit.message
+              });
+            } catch (detailError) {
+              // Skip this commit if we can't get details
+              console.log(`      Skipping commit ${commit.sha}: ${detailError.message}`);
+            }
+          }
+        }
+
+        hasMorePages = response.data.length === params.per_page;
+        page++;
+      } catch (error) {
+        console.warn(`      Error fetching commits page ${page}: ${error.message}`);
+        hasMorePages = false;
+      }
+    }
+
+    return commits;
+  } catch (error) {
+    console.warn(`    Error fetching commits for ${repo}: ${error.message}`);
+    return [];
+  }
 }
 
 // Display team statistics in a formatted table
@@ -863,26 +990,30 @@ function displayTeamStatsTable(teamStats, startDate, endDate) {
 
   // Display summary table
   console.log('TEAM SUMMARY:');
-  console.log('┌─────────────────────────┬─────────┬──────────────────┬─────────────────┐');
-  console.log('│ Team Name               │ Members │ Total Code Lines │ Total AI Lines  │');
-  console.log('├─────────────────────────┼─────────┼──────────────────┼─────────────────┤');
+  console.log('┌─────────────────────────┬─────────┬──────────────────┬─────────────────┬─────────────┐');
+  console.log('│ Team Name               │ Members │ Total Code Lines │ Total AI Lines  │ AI %        │');
+  console.log('├─────────────────────────┼─────────┼──────────────────┼─────────────────┼─────────────┤');
 
   Object.entries(teamStats).forEach(([teamName, stats]) => {
     const name = teamName.padEnd(23);
     const members = stats.members.toString().padStart(7);
     const totalCode = stats.totalCodeLines.toString().padStart(16);
     const totalAI = stats.totalCopilotLines.toString().padStart(15);
-    console.log(`│ ${name} │ ${members} │ ${totalCode} │ ${totalAI} │`);
+    const aiPercentage = stats.totalCodeLines > 0 ?
+      ((stats.totalCopilotLines / stats.totalCodeLines) * 100).toFixed(1) + '%' :
+      '0.0%';
+    const aiPercent = aiPercentage.padStart(11);
+    console.log(`│ ${name} │ ${members} │ ${totalCode} │ ${totalAI} │ ${aiPercent} │`);
   });
 
-  console.log('└─────────────────────────┴─────────┴──────────────────┴─────────────────┘');
+  console.log('└─────────────────────────┴─────────┴──────────────────┴─────────────────┴─────────────┘');
 
   // Display daily breakdown if we have data
   if (sortedDates.length > 0) {
     console.log('\nDAILY BREAKDOWN:');
-    console.log('┌────────────┬─────────────────────────┬──────────────────┬─────────────────┐');
-    console.log('│ Date       │ Team Name               │ Total Code Lines │ AI Lines        │');
-    console.log('├────────────┼─────────────────────────┼──────────────────┼─────────────────┤');
+    console.log('┌────────────┬─────────────────────────┬──────────────────┬─────────────────┬─────────────┐');
+    console.log('│ Date       │ Team Name               │ Total Code Lines │ AI Lines        │ AI %        │');
+    console.log('├────────────┼─────────────────────────┼──────────────────┼─────────────────┼─────────────┤');
 
     sortedDates.forEach(date => {
       Object.entries(teamStats).forEach(([teamName, stats]) => {
@@ -892,12 +1023,19 @@ function displayTeamStatsTable(teamStats, startDate, endDate) {
           const name = teamName.padEnd(23);
           const totalCode = dayStats.totalCodeLines.toString().padStart(16);
           const aiLines = dayStats.copilotLines.toString().padStart(15);
-          console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │`);
+
+          // Calculate daily AI percentage
+          const dailyAiPercentage = dayStats.totalCodeLines > 0 ?
+            ((dayStats.copilotLines / dayStats.totalCodeLines) * 100).toFixed(1) + '%' :
+            '0.0%';
+          const aiPercent = dailyAiPercentage.padStart(11);
+
+          console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │ ${aiPercent} │`);
         }
       });
     });
 
-    console.log('└────────────┴─────────────────────────┴──────────────────┴─────────────────┘');
+    console.log('└────────────┴─────────────────────────┴──────────────────┴─────────────────┴─────────────┘');
   }
 }
 
@@ -922,5 +1060,7 @@ module.exports = {
   analyzeAICodeInPR,
   getRepoBranch,
   calculateTeamDailyStats,
-  displayTeamStatsTable
+  displayTeamStatsTable,
+  getTeamDailyCommits,
+  getRepoCommitsForTeam
 };
