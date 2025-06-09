@@ -6,9 +6,10 @@
 const axios = require('axios');
 
 // Define the default teams we want to filter by
-const DEFAULT_TARGET_TEAMS = [
-  'Engineering'
-];
+// Can be overridden by DEFAULT_TARGET_TEAMS environment variable (comma-separated)
+const DEFAULT_TARGET_TEAMS = process.env.DEFAULT_TARGET_TEAMS
+  ? process.env.DEFAULT_TARGET_TEAMS.split(',').map(team => team.trim())
+  : ['Engineering'];
 
 // Parse command line arguments
 function parseArgs() {
@@ -369,20 +370,14 @@ async function getOrgTeams(org, targetTeams, headers) {
 
     const teams = response.data.filter(team =>
       targetTeams.some(targetTeam =>
-        team.name.toLowerCase().includes(targetTeam.toLowerCase())
+        team.name.toLowerCase() === targetTeam.toLowerCase()
       )
     );
 
     console.log(`Found ${teams.length} matching teams out of ${response.data.length} total teams`);
     return teams;
   } catch (error) {
-    console.error('Error fetching organization teams:', error.message);
-    if (error.response) {
-      console.error(`Status: ${error.response.status}`);
-      if (error.response.status === 403) {
-        console.error('Access denied to team data. Your token may need "read:org" permission.');
-      }
-    }
+    console.error('❌ Error fetching organization teams:', error.message);
     return [];
   }
 }
@@ -402,7 +397,7 @@ async function getTeamMembers(teamSlug, org, headers) {
     teamMembersCache.set(cacheKey, members);
     return members;
   } catch (error) {
-    console.error(`Error fetching members for team ${teamSlug}:`, error.message);
+    console.error(`❌ Error fetching members for team ${teamSlug}:`, error.message);
     return [];
   }
 }
@@ -425,7 +420,7 @@ async function getRepoContributors(org, repo, headers) {
     const response = await axios.get(url, { headers });
     return response.data.map(contributor => contributor.login);
   } catch (error) {
-    console.error(`Error fetching contributors for ${repo}:`, error.message);
+    console.error(`❌ Error fetching contributors for ${repo}:`, error.message);
     return [];
   }
 }
@@ -507,14 +502,10 @@ async function getRepoMergedPRs(org, repo, startDate, endDate, headers) {
         }
       } catch (error) {
         if (error.response && error.response.status === 404) {
-          console.error(`    ❌ Repository ${org}/${repo} not found or not accessible`);
-          console.error(`    This could mean:`);
-          console.error(`    - The repository doesn't exist`);
-          console.error(`    - Your token doesn't have access to this private repository`);
-          console.error(`    - The repository name is incorrect`);
+          console.error(`❌ Repository ${org}/${repo} not found or not accessible`);
           return [];
         } else {
-          console.error(`    Error fetching PR page ${page}: ${error.message}`);
+          console.error(`❌ Error fetching PR page ${page}: ${error.message}`);
         }
         hasMorePages = false;
       }
@@ -524,9 +515,9 @@ async function getRepoMergedPRs(org, repo, startDate, endDate, headers) {
     return allPRs;
   } catch (error) {
     if (error.response && error.response.status === 404) {
-      console.error(`  ❌ Repository ${org}/${repo} not found or not accessible`);
+      console.error(`❌ Repository ${org}/${repo} not found or not accessible`);
     } else {
-      console.error(`  Error fetching PRs for ${repo}: ${error.message}`);
+      console.error(`❌ Error fetching PRs for ${repo}: ${error.message}`);
     }
     return [];
   }
@@ -562,7 +553,7 @@ async function getPRDetails(org, repo, prNumber, headers) {
       files: filesResponse.data.map(f => f.filename)
     };
   } catch (error) {
-    console.error(`    Error fetching details for PR #${prNumber}: ${error.message}`);
+    console.error(`❌ Error fetching details for PR #${prNumber}: ${error.message}`);
     return null;
   }
 }
