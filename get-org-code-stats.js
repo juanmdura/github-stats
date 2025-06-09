@@ -506,7 +506,16 @@ async function getRepoMergedPRs(org, repo, startDate, endDate, headers) {
           }
         }
       } catch (error) {
-        console.error(`    Error fetching PR page ${page}: ${error.message}`);
+        if (error.response && error.response.status === 404) {
+          console.error(`    ❌ Repository ${org}/${repo} not found or not accessible`);
+          console.error(`    This could mean:`);
+          console.error(`    - The repository doesn't exist`);
+          console.error(`    - Your token doesn't have access to this private repository`);
+          console.error(`    - The repository name is incorrect`);
+          return [];
+        } else {
+          console.error(`    Error fetching PR page ${page}: ${error.message}`);
+        }
         hasMorePages = false;
       }
     }
@@ -514,7 +523,11 @@ async function getRepoMergedPRs(org, repo, startDate, endDate, headers) {
     console.log(`  ✅ Found ${allPRs.length} total merged PRs for ${repo} in the specified date range`);
     return allPRs;
   } catch (error) {
-    console.error(`  Error fetching PRs for ${repo}: ${error.message}`);
+    if (error.response && error.response.status === 404) {
+      console.error(`  ❌ Repository ${org}/${repo} not found or not accessible`);
+    } else {
+      console.error(`  Error fetching PRs for ${repo}: ${error.message}`);
+    }
     return [];
   }
 }
