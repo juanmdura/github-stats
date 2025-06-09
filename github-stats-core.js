@@ -50,6 +50,12 @@ async function collectStats(org, startDate, endDate, targetTeams, token) {
   // STEPS 3 & 4: Count lines of code modified in those PRs and AI-assisted lines
   const codeStats = await calculateCodeStats(org, teamFilteredPRs, headers);
 
+  // STEP 5: Calculate per-team daily statistics
+  const teamStats = await utils.calculateTeamDailyStats(org, teams, startDate, endDate, headers);
+
+  // Display the team statistics table
+  utils.displayTeamStatsTable(teamStats, startDate, endDate);
+
   // Generate summary report
   const results = {
     repositories: allRepos.length,
