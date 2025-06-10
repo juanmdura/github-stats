@@ -236,22 +236,21 @@ async function calculateCodeStats(org, teamFilteredPRs, headers) {
  * Display summary report
  */
 function displaySummaryReport(results, repoCount, prCount) {
-  console.log(`\nTotal code changes from team members:`);
-  console.log(`- Additions: ${results.codeChanges.additions}`);
-  console.log(`- Deletions: ${results.codeChanges.deletions}`);
-  console.log(`- Estimated AI-assisted lines: ${results.codeChanges.aiLines}`);
-  console.log(`- Total lines modified: ${results.codeChanges.total}`);
-
-  console.log(`\nDetailed PRs analyzed:`);
-  results.details.forEach(pr => {
-    console.log(`- PR #${pr.number} (${pr.title}) in ${pr.repo}: ${pr.additions} additions, ${pr.deletions} deletions`);
-  });
-
   console.log(`\n=== Summary ===`);
   console.log(`Total repositories analyzed: ${repoCount}`);
   console.log(`Total PRs from target teams: ${prCount}`);
-  console.log(`Total code changes from target teams: ${results.codeChanges.total}`);
-  console.log(`Estimated AI-assisted lines: ${results.codeChanges.aiLines}`);
+  console.log(`- Additions: ${results.codeChanges.additions}`);
+  console.log(`- Deletions: ${results.codeChanges.deletions}`);
+  console.log(`- Total lines modified: ${results.codeChanges.total}`);
+  console.log(`- Estimated AI-assisted lines: ${results.codeChanges.aiLines}`);
+
+
+  /*if (results.details.length > 0) {
+    console.log(`\n=== Detailed PRs Analyzed (${results.details.length}) ===`);
+    results.details.forEach(pr => {
+      console.log(`- PR #${pr.number} (${pr.title}) in ${pr.repo}: ${pr.additions} additions, ${pr.deletions} deletions`);
+    });
+  }*/
 }
 
 module.exports = { collectStats };

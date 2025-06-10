@@ -1,11 +1,5 @@
 {
     "defaultTargetTeams": [
-        "core-engineering",
-        "consumer-connect",
-        "data science",
-        "enterprise-solutions",
-        "flexifleet",
-        "Fulfillment",
-        "qa-automation-team"
+        "flexifleet"
     ]
 }

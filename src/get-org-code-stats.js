@@ -100,10 +100,6 @@ async function checkToken(headers) {
     return true;
   } catch (error) {
     console.error('❌ Token validation failed:', error.message);
-    if (error.response) {
-      console.error(`Status: ${error.response.status}`);
-      console.error('Response:', error.response.data);
-    }
     return false;
   }
 }
@@ -152,13 +148,7 @@ async function getAllRepos(org, headers) {
     });
 
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      console.error('Error: repos.json file not found. Please create the file with your repository list.');
-    } else if (error instanceof SyntaxError) {
-      console.error('Error: Invalid JSON format in repos.json file.');
-    } else {
-      console.error('Error reading repositories from repos.json:', error.message);
-    }
+    console.error('❌ Error reading repositories from repos.json:', error.message);
     return [];
   }
 }
@@ -236,17 +226,8 @@ async function getCopilotMetrics(org, startDate, endDate, headers) {
       dailyData: Array.isArray(metrics) ? metrics : []
     };
   } catch (error) {
-    console.warn(`⚠️ Unable to fetch Copilot metrics: ${error.message}`);
-    if (error.response) {
-      if (error.response.status === 403) {
-        console.warn('Token may need "manage_billing:copilot" scope to access Copilot metrics');
-      } else if (error.response.status === 422) {
-        console.warn('Copilot Usage Metrics API setting is disabled at the organization or enterprise level');
-        console.warn('Contact your organization admin to enable Copilot metrics in GitHub settings');
-      } else if (error.response.status === 404) {
-        console.warn('Organization not found or no Copilot metrics available');
-      }
-    }
+    console.error(`❌ Unable to fetch Copilot metrics: ${error.message}`);
+    //⚠️
     return {
       totalCodeLinesAccepted: 0,
       success: false,
@@ -331,16 +312,7 @@ async function getTeamCopilotMetrics(org, teamSlug, startDate, endDate, headers)
       success: true
     };
   } catch (error) {
-    console.warn(`⚠️ Unable to fetch Copilot metrics for team ${teamSlug}: ${error.message}`);
-    if (error.response) {
-      if (error.response.status === 403) {
-        console.warn('Token may need "manage_billing:copilot" scope to access team Copilot metrics');
-      } else if (error.response.status === 422) {
-        console.warn('Copilot Usage Metrics API setting is disabled at the organization or enterprise level');
-      } else if (error.response.status === 404) {
-        console.warn(`Team ${teamSlug} not found or no Copilot metrics available`);
-      }
-    }
+    console.error(`❌ Unable to fetch Copilot metrics for team ${teamSlug}: ${error.message}`);
     return {
       dailyMetrics: [],
       totalCodeLinesAccepted: 0,
@@ -454,7 +426,7 @@ async function getRepoStats(org, repo, startDate, endDate, headers) {
       });
 
     } catch (error) {
-      console.log(`  Unable to fetch commit data for Copilot analysis: ${error.message}`);
+      console.error(`❌ Unable to fetch commit data for Copilot analysis: ${error.message}`);
     }
 
     res.data.forEach(contributor => {
@@ -817,6 +789,57 @@ function getRepoBranch(org, repoName) {
   }
 }
 
+// Calculate total code lines for a team by analyzing commits from team members
+async function calculateTeamTotalCodeLines(org, team, members, startDate, endDate, headers) {
+  console.log(`  Calculating code contributions by team members...`);
+  const teamDailyCommits = await getTeamDailyCommits(org, team, members, startDate, endDate, headers);
+
+  let totalCodeLines = 0;
+  const dailyCodeStats = {};
+
+  // Process commit data into daily stats with individual contributions
+  Object.entries(teamDailyCommits).forEach(([date, stats]) => {
+    dailyCodeStats[date] = {
+      date,
+      totalCodeLines: stats.totalLines,
+      copilotLines: 0, // Will be filled by Copilot function
+      contributions: stats.contributions || [] // Individual contributions with PR/commit info
+    };
+    totalCodeLines += stats.totalLines;
+  });
+
+  return {
+    totalCodeLines,
+    dailyCodeStats
+  };
+}
+
+// Calculate total Copilot lines for a team using GitHub Copilot metrics
+async function calculateTeamCopilotTotalLines(org, team, startDate, endDate, headers) {
+  console.log(`  Getting team Copilot metrics...`);
+  const copilotMetrics = await getTeamCopilotMetrics(org, team.slug, startDate, endDate, headers);
+
+  let totalCopilotLines = 0;
+  const dailyCopilotStats = {};
+
+  // Process Copilot daily metrics
+  if (copilotMetrics.success && copilotMetrics.dailyMetrics.length > 0) {
+    copilotMetrics.dailyMetrics.forEach(dayMetric => {
+      const date = dayMetric.date;
+      dailyCopilotStats[date] = {
+        date,
+        copilotLines: dayMetric.total_code_lines_accepted || 0
+      };
+      totalCopilotLines += dayMetric.total_code_lines_accepted || 0;
+    });
+  }
+
+  return {
+    totalCopilotLines,
+    dailyCopilotStats
+  };
+}
+
 // Calculate per-team daily statistics combining code changes and Copilot metrics
 async function calculateTeamDailyStats(org, teams, startDate, endDate, headers) {
   console.log('\n=== Calculating per-team daily statistics ===');
@@ -826,58 +849,45 @@ async function calculateTeamDailyStats(org, teams, startDate, endDate, headers) 
   for (const team of teams) {
     console.log(`\nProcessing team: ${team.name} (${team.slug})`);
 
-    // Get team Copilot metrics
-    const copilotMetrics = await getTeamCopilotMetrics(org, team.slug, startDate, endDate, headers);
-
-    // Get team members to calculate their total code contributions
+    // Get team members
     const members = await getTeamMembers(team.slug, org, headers);
     console.log(`  Team has ${members.length} members`);
 
-    // Initialize team stats
+    // Calculate total code lines
+    const codeStats = await calculateTeamTotalCodeLines(org, team, members, startDate, endDate, headers);
+
+    // Calculate total Copilot lines
+    const copilotStats = await calculateTeamCopilotTotalLines(org, team, startDate, endDate, headers);
+
+    // Merge daily stats from both sources
+    const allDates = new Set([
+      ...Object.keys(codeStats.dailyCodeStats),
+      ...Object.keys(copilotStats.dailyCopilotStats)
+    ]);
+
+    // Initialize team stats with daily breakdown
     teamStats[team.name] = {
       slug: team.slug,
       members: members.length,
       dailyStats: {},
-      totalCodeLines: 0,
-      totalCopilotLines: 0
-    };
+      totalCodeLines: codeStats.totalCodeLines,
+      totalCopilotLines: copilotStats.totalCopilotLines
+    };    // Build daily stats with proper structure
+    allDates.forEach(date => {
+      const dailyCodeLines = codeStats.dailyCodeStats[date]?.totalCodeLines || 0;
+      const dailyCopilotLines = copilotStats.dailyCopilotStats[date]?.copilotLines || 0;
+      const contributions = codeStats.dailyCodeStats[date]?.contributions || [];
 
-    // Process Copilot daily metrics
-    if (copilotMetrics.success && copilotMetrics.dailyMetrics.length > 0) {
-      copilotMetrics.dailyMetrics.forEach(dayMetric => {
-        const date = dayMetric.date;
-        if (!teamStats[team.name].dailyStats[date]) {
-          teamStats[team.name].dailyStats[date] = {
-            date,
-            totalCodeLines: 0,
-            copilotLines: dayMetric.total_code_lines_accepted || 0
-          };
-        } else {
-          teamStats[team.name].dailyStats[date].copilotLines = dayMetric.total_code_lines_accepted || 0;
-        }
-        teamStats[team.name].totalCopilotLines += dayMetric.total_code_lines_accepted || 0;
-      });
-    }
-
-    // Calculate actual code lines by analyzing commits from team members
-    console.log(`  Calculating code contributions by team members...`);
-    const teamDailyCommits = await getTeamDailyCommits(org, team, members, startDate, endDate, headers);
-
-    // Merge commit data with daily stats
-    Object.entries(teamDailyCommits).forEach(([date, stats]) => {
-      if (!teamStats[team.name].dailyStats[date]) {
-        teamStats[team.name].dailyStats[date] = {
-          date,
-          totalCodeLines: stats.totalLines,
-          copilotLines: 0
-        };
-      } else {
-        teamStats[team.name].dailyStats[date].totalCodeLines = stats.totalLines;
-      }
-      teamStats[team.name].totalCodeLines += stats.totalLines;
+      teamStats[team.name].dailyStats[date] = {
+        date,
+        totalCodeLines: dailyCodeLines,
+        totalCopilotLines: dailyCopilotLines,
+        copilotLines: dailyCopilotLines, // Keep for backward compatibility
+        contributions: contributions // Individual contributions with PR/commit info
+      };
     });
 
-    console.log(`  Team ${team.name}: ${teamStats[team.name].totalCodeLines} total code lines, ${teamStats[team.name].totalCopilotLines} total Copilot lines`);
+    console.log(`  Team ${team.name}: ${teamStats[team.name].totalCodeLines} total code lines, ${teamStats[team.name].totalCopilotLines} total Copilot lines across ${allDates.size} days`);
   }
 
   return teamStats;
@@ -889,9 +899,9 @@ async function getTeamDailyCommits(org, team, members, startDate, endDate, heade
 
   try {
     // Get all repositories to analyze
-    const allRepos = await getAllRepos(org, headers);
+    const repos = await getAllRepos(org, headers);
 
-    for (const repo of allRepos) {
+    for (const repo of repos) {
       console.log(`    Analyzing commits in ${repo}...`);
 
       // Get commits from this repository within the date range
@@ -903,15 +913,27 @@ async function getTeamDailyCommits(org, team, members, startDate, endDate, heade
         if (!dailyStats[date]) {
           dailyStats[date] = {
             totalLines: 0,
-            commits: 0
+            commits: 0,
+            contributions: []
           };
         }
         dailyStats[date].totalLines += commit.additions + commit.deletions;
         dailyStats[date].commits += 1;
+
+        // Track individual contributions
+        dailyStats[date].contributions.push({
+          author: commit.author,
+          additions: commit.additions,
+          deletions: commit.deletions,
+          totalLines: commit.additions + commit.deletions,
+          commitSha: commit.sha,
+          repository: repo,
+          message: commit.message
+        });
       });
     }
   } catch (error) {
-    console.warn(`    ⚠️ Error calculating team commits: ${error.message}`);
+    console.error(`❌ Error calculating team commits: ${error.message}`);
   }
 
   return dailyStats;
@@ -975,7 +997,7 @@ async function getRepoCommitsForTeam(org, repo, teamMembers, startDate, endDate,
               });
             } catch (detailError) {
               // Skip this commit if we can't get details
-              console.log(`      Skipping commit ${commit.sha}: ${detailError.message}`);
+              console.error(`❌ Skipping commit ${commit.sha}: ${detailError.message}`);
             }
           }
         }
@@ -983,14 +1005,14 @@ async function getRepoCommitsForTeam(org, repo, teamMembers, startDate, endDate,
         hasMorePages = response.data.length === params.per_page;
         page++;
       } catch (error) {
-        console.warn(`      Error fetching commits page ${page}: ${error.message}`);
+        console.error(`❌ Error fetching commits page ${page}: ${error.message}`);
         hasMorePages = false;
       }
     }
 
     return commits;
   } catch (error) {
-    console.warn(`    Error fetching commits for ${repo}: ${error.message}`);
+    console.error(`❌ Error fetching commits for ${repo}: ${error.message}`);
     return [];
   }
 }
@@ -1037,14 +1059,48 @@ function displayTeamStatsTable(teamStats, startDate, endDate) {
   // Display daily breakdown if we have data
   if (sortedDates.length > 0) {
     console.log('\nDAILY BREAKDOWN:');
-    console.log('┌────────────┬─────────────────────────┬──────────────────┬─────────────────┬─────────────┐');
-    console.log('│ Date       │ Team Name               │ Total Code Lines │ AI Lines        │ AI %        │');
-    console.log('├────────────┼─────────────────────────┼──────────────────┼─────────────────┼─────────────┤');
+    console.log('┌────────────┬─────────────────────────┬──────────────────┬─────────────────┬─────────────┬──────────────┬────────────────────┐');
+    console.log('│ Date       │ Team Name               │ Total Code Lines │ AI Lines        │ AI %        │ PR ID        │ Contributor        │');
+    console.log('├────────────┼─────────────────────────┼──────────────────┼─────────────────┼─────────────┼──────────────┼────────────────────┤');
 
     sortedDates.forEach(date => {
       Object.entries(teamStats).forEach(([teamName, stats]) => {
         const dayStats = stats.dailyStats[date];
-        if (dayStats) {
+        if (dayStats && dayStats.contributions && dayStats.contributions.length > 0) {
+          // Group contributions by contributor for better readability
+          const contributionsByContributor = {};
+          dayStats.contributions.forEach(contribution => {
+            if (!contributionsByContributor[contribution.author]) {
+              contributionsByContributor[contribution.author] = [];
+            }
+            contributionsByContributor[contribution.author].push(contribution);
+          });
+
+          // Display each contributor's contributions
+          Object.entries(contributionsByContributor).forEach(([contributor, contributions], contributorIndex) => {
+            contributions.forEach((contribution, contributionIndex) => {
+              const dateStr = (contributorIndex === 0 && contributionIndex === 0) ? date.padEnd(10) : ''.padEnd(10);
+              const name = (contributorIndex === 0 && contributionIndex === 0) ? teamName.padEnd(23) : ''.padEnd(23);
+              const totalCode = (contributorIndex === 0 && contributionIndex === 0) ? dayStats.totalCodeLines.toString().padStart(16) : ''.padStart(16);
+              const aiLines = (contributorIndex === 0 && contributionIndex === 0) ? dayStats.copilotLines.toString().padStart(15) : ''.padStart(15);
+
+              // Calculate daily AI percentage (only show on first row)
+              const dailyAiPercentage = (contributorIndex === 0 && contributionIndex === 0 && dayStats.totalCodeLines > 0) ?
+                ((dayStats.copilotLines / dayStats.totalCodeLines) * 100).toFixed(1) + '%' :
+                '';
+              const aiPercent = dailyAiPercentage.padStart(11);
+
+              // PR ID (use commit SHA as proxy for PR, truncated)
+              const prId = contribution.commitSha.substring(0, 8).padEnd(12);
+
+              // Contributor name
+              const contributorName = contributor.substring(0, 18).padEnd(18);
+
+              console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │ ${aiPercent} │ ${prId} │ ${contributorName} │`);
+            });
+          });
+        } else if (dayStats) {
+          // Show summary row even if no individual contributions are available
           const dateStr = date.padEnd(10);
           const name = teamName.padEnd(23);
           const totalCode = dayStats.totalCodeLines.toString().padStart(16);
@@ -1056,12 +1112,15 @@ function displayTeamStatsTable(teamStats, startDate, endDate) {
             '0.0%';
           const aiPercent = dailyAiPercentage.padStart(11);
 
-          console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │ ${aiPercent} │`);
+          const prId = 'N/A'.padEnd(12);
+          const contributorName = 'Multiple/Unknown'.padEnd(18);
+
+          console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │ ${aiPercent} │ ${prId} │ ${contributorName} │`);
         }
       });
     });
 
-    console.log('└────────────┴─────────────────────────┴──────────────────┴─────────────────┴─────────────┘');
+    console.log('└────────────┴─────────────────────────┴──────────────────┴─────────────────┴─────────────┴──────────────┴────────────────────┘');
   }
 }
 
@@ -1085,6 +1144,8 @@ module.exports = {
   getPRDetails,
   analyzeAICodeInPR,
   getRepoBranch,
+  calculateTeamTotalCodeLines,
+  calculateTeamCopilotTotalLines,
   calculateTeamDailyStats,
   displayTeamStatsTable,
   getTeamDailyCommits,

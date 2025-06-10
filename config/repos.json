@@ -1,8 +1,16 @@
 {
     "repositories": [
         {
-            "repo": "Zubale/control-tower",
-            "branch": "master"
+            "repo": "Zubale/reservation-service",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/query_quest",
+            "branch": "main"
+        },
+        {
+            "repo": "Zubale/wallet",
+            "branch": "main"
         }
     ]
 }
