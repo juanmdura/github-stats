@@ -1,0 +1,7 @@
+{
+    "defaultTargetTeams": [
+        "test-team-1",
+        "test-team-2",
+        "engineering"
+    ]
+}

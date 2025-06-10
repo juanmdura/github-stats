@@ -1,0 +1,16 @@
+{
+    "repositories": [
+        {
+            "repo": "TestOrg/repo1",
+            "branch": "main"
+        },
+        {
+            "repo": "TestOrg/repo2",
+            "branch": "develop"
+        },
+        {
+            "repo": "TestOrg/repo3",
+            "branch": "master"
+        }
+    ]
+}
