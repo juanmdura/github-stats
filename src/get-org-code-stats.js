@@ -5,11 +5,30 @@
 
 const axios = require('axios');
 
+// Load default teams from config file
+function loadDefaultTargetTeams() {
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const teamsConfigPath = path.join(__dirname, '../config/teams.json');
+    const teamsData = JSON.parse(fs.readFileSync(teamsConfigPath, 'utf8'));
+
+    if (!teamsData.defaultTargetTeams || !Array.isArray(teamsData.defaultTargetTeams)) {
+      console.warn('Warning: Invalid teams.json format, using fallback teams');
+      return ['Engineering'];
+    }
+
+    return teamsData.defaultTargetTeams;
+  } catch (error) {
+    console.warn('Warning: Could not read teams.json, using fallback teams:', error.message);
+    return ['Engineering'];
+  }
+}
+
 // Define the default teams we want to filter by
-// Can be overridden by DEFAULT_TARGET_TEAMS environment variable (comma-separated)
-const DEFAULT_TARGET_TEAMS = process.env.DEFAULT_TARGET_TEAMS
-  ? process.env.DEFAULT_TARGET_TEAMS.split(',').map(team => team.trim())
-  : ['Engineering'];
+// Loaded from config/teams.json file
+const DEFAULT_TARGET_TEAMS = loadDefaultTargetTeams();
 
 // Parse command line arguments
 function parseArgs() {
@@ -96,8 +115,11 @@ async function getAllRepos(org, headers) {
   try {
     console.log(`Loading repositories for ${org} from repos.json file...`);
 
-    // Read the repos.json file
-    const reposFilePath = path.join(__dirname, 'repos.json');
+    // Read the repos.json file from environment variable or default path
+    const configPath = process.env.REPOS_CONFIG_PATH || 'config/repos.json';
+    const reposFilePath = path.isAbsolute(configPath)
+      ? configPath
+      : path.join(__dirname, '..', configPath);
     const reposData = JSON.parse(fs.readFileSync(reposFilePath, 'utf8'));
 
     if (!reposData.repositories || !Array.isArray(reposData.repositories)) {
@@ -774,7 +796,11 @@ function getRepoBranch(org, repoName) {
   const path = require('path');
 
   try {
-    const reposFilePath = path.join(__dirname, 'repos.json');
+    // Read the repos.json file from environment variable or default path
+    const configPath = process.env.REPOS_CONFIG_PATH || 'config/repos.json';
+    const reposFilePath = path.isAbsolute(configPath)
+      ? configPath
+      : path.join(__dirname, '..', configPath);
     const reposData = JSON.parse(fs.readFileSync(reposFilePath, 'utf8'));
 
     if (!reposData.repositories || !Array.isArray(reposData.repositories)) {

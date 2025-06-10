@@ -2,13 +2,13 @@
   "name": "github-org-code-stats",
   "version": "1.0.0",
   "description": "Analyze code contributions in GitHub organizations, with team filters and AI detection",
-  "main": "index.js",
+  "main": "src/index.js",
   "bin": {
-    "github-code-stats": "index.js"
+    "github-code-stats": "src/index.js"
   },
   "scripts": {
-    "start": "node index.js",
-    "dev": "node -r dotenv/config index.js"
+    "start": "node src/index.js",
+    "dev": "node -r dotenv/config src/index.js"
   },
   "dependencies": {
     "axios": "^1.9.0",

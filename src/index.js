@@ -9,7 +9,7 @@
 
 // Load environment variables from .env file if present
 try {
-  require('dotenv').config();
+  require('dotenv').config({ path: require('path').join(__dirname, '../env/.env') });
 } catch (error) {
   console.log('Note: No .env file found. Using environment variables directly.');
 }
