@@ -6,6 +6,10 @@ This directory contains the test suite for the GitHub Organization Code Statisti
 
 ```
 tests/
+├── coverage/           # Test coverage reports (generated)
+│   ├── index.html      # Main coverage report
+│   ├── lcov-report/    # HTML coverage reports
+│   └── lcov.info       # LCOV format data
 ├── fixtures/           # Test data and mock files
 │   ├── repos.json      # Mock repository configuration
 │   └── teams.json      # Mock teams configuration
@@ -61,6 +65,21 @@ npm run test:watch
 ```bash
 npm run test:coverage
 ```
+
+## Viewing Coverage Reports
+
+You can open the HTML coverage report in your browser:
+
+```bash
+open tests/coverage/lcov-report/index.html
+```
+
+Or on Linux:
+```bash
+xdg-open tests/coverage/lcov-report/index.html
+```
+
+The coverage reports show which parts of your code are tested and help identify areas that need more test coverage.
 
 ## Test Status
 

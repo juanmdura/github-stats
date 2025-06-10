@@ -8,7 +8,7 @@
         "src/**/*.js",
         "!src/index.js"
     ],
-    "coverageDirectory": "coverage",
+    "coverageDirectory": "tests/coverage",
     "coverageReporters": [
         "text",
         "lcov",
