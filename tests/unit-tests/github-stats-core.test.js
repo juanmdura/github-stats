@@ -2,14 +2,14 @@ const axios = require('axios');
 const MockAdapter = require('axios-mock-adapter');
 
 // Import the module to test
-const core = require('../src/github-stats-core');
-const utils = require('../src/get-org-code-stats');
+const core = require('../../src/github-stats-core');
+const utils = require('../../src/get-org-code-stats');
 
 // Mock axios
 const mockAxios = new MockAdapter(axios);
 
 // Mock the utils module
-jest.mock('../src/get-org-code-stats');
+jest.mock('../../src/get-org-code-stats');
 
 describe('github-stats-core', () => {
     let originalConsole;

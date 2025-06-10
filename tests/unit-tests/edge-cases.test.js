@@ -2,7 +2,7 @@ const axios = require('axios');
 const MockAdapter = require('axios-mock-adapter');
 
 // Import the module to test
-const utils = require('../src/get-org-code-stats');
+const utils = require('../../src/get-org-code-stats');
 
 // Mock axios
 const mockAxios = new MockAdapter(axios);

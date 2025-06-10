@@ -4,8 +4,8 @@ const axios = require('axios');
 const MockAdapter = require('axios-mock-adapter');
 
 // Import modules
-const core = require('../src/github-stats-core');
-const utils = require('../src/get-org-code-stats');
+const core = require('../../src/github-stats-core');
+const utils = require('../../src/get-org-code-stats');
 
 // Mock axios
 const mockAxios = new MockAdapter(axios);
@@ -184,23 +184,23 @@ describe('Integration Tests', () => {
             jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockTeamsData));
 
             // Clear module cache to force reload
-            const modulePath = require.resolve('../src/get-org-code-stats');
+            const modulePath = require.resolve('../../src/get-org-code-stats');
             delete require.cache[modulePath];
 
             // Mock the loadDefaultTargetTeams function since it's called at module load time
-            jest.doMock('../src/get-org-code-stats', () => {
-                const originalModule = jest.requireActual('../src/get-org-code-stats');
+            jest.doMock('../../src/get-org-code-stats', () => {
+                const originalModule = jest.requireActual('../../src/get-org-code-stats');
                 return {
                     ...originalModule,
                     DEFAULT_TARGET_TEAMS: ['team1', 'team2', 'team3']
                 };
             });
 
-            const reloadedUtils = require('../src/get-org-code-stats');
+            const reloadedUtils = require('../../src/get-org-code-stats');
             expect(reloadedUtils.DEFAULT_TARGET_TEAMS).toEqual(['team1', 'team2', 'team3']);
 
             fs.readFileSync.mockRestore();
-            jest.dontMock('../src/get-org-code-stats');
+            jest.dontMock('../../src/get-org-code-stats');
         });
 
         test('should handle teams configuration file errors', () => {
@@ -214,8 +214,8 @@ describe('Integration Tests', () => {
             });
 
             // Clear module cache and reload
-            delete require.cache[require.resolve('../src/get-org-code-stats')];
-            const reloadedUtils = require('../src/get-org-code-stats');
+            delete require.cache[require.resolve('../../src/get-org-code-stats')];
+            const reloadedUtils = require('../../src/get-org-code-stats');
 
             // When teams.json fails to load, it should fallback to empty array or handle gracefully
             expect(Array.isArray(reloadedUtils.DEFAULT_TARGET_TEAMS)).toBe(true);

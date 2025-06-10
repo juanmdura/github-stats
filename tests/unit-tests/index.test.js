@@ -2,12 +2,12 @@ const path = require('path');
 
 // Mock dependencies
 jest.mock('dotenv');
-jest.mock('../src/github-stats-core');
-jest.mock('../src/get-org-code-stats');
+jest.mock('../../src/github-stats-core');
+jest.mock('../../src/get-org-code-stats');
 
 const dotenv = require('dotenv');
-const core = require('../src/github-stats-core');
-const utils = require('../src/get-org-code-stats');
+const core = require('../../src/github-stats-core');
+const utils = require('../../src/get-org-code-stats');
 
 describe('index.js', () => {
     let originalConsole;
@@ -77,8 +77,8 @@ describe('index.js', () => {
 
     test('should load dotenv config with correct path', () => {
         // Clear the module cache and require index.js
-        delete require.cache[require.resolve('../src/index.js')];
-        require('../src/index.js');
+        delete require.cache[require.resolve('../../src/index.js')];
+        require('../../src/index.js');
 
         expect(dotenv.config).toHaveBeenCalledWith({
             path: expect.stringContaining(path.join('env', '.env'))
@@ -90,15 +90,15 @@ describe('index.js', () => {
         delete process.env.GITHUB_TOKEN;
 
         // Clear all related modules from cache
-        delete require.cache[require.resolve('../src/index.js')];
-        delete require.cache[require.resolve('../src/get-org-code-stats.js')];
-        delete require.cache[require.resolve('../src/github-stats-core.js')];
+        delete require.cache[require.resolve('../../src/index.js')];
+        delete require.cache[require.resolve('../../src/get-org-code-stats.js')];
+        delete require.cache[require.resolve('../../src/github-stats-core.js')];
 
         // Mock process.exit before requiring the module
         const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => { });
 
         try {
-            require('../src/index.js');
+            require('../../src/index.js');
         } catch (error) {
             // Ignore any errors from the module execution
         }
@@ -118,7 +118,7 @@ describe('index.js', () => {
         utils.parseArgs.mockReturnValue({});
 
         // Clear the module cache and require index.js
-        delete require.cache[require.resolve('../src/index.js')];
+        delete require.cache[require.resolve('../../src/index.js')];
 
         // Wait for the async function to complete
         await new Promise((resolve, reject) => {
@@ -139,7 +139,7 @@ describe('index.js', () => {
                 return Promise.resolve({});
             });
 
-            require('../src/index.js');
+            require('../../src/index.js');
         });
     });
 
@@ -157,7 +157,7 @@ describe('index.js', () => {
         });
 
         // Clear the module cache and require index.js
-        delete require.cache[require.resolve('../src/index.js')];
+        delete require.cache[require.resolve('../../src/index.js')];
 
         // Wait for the async function to complete
         await new Promise((resolve, reject) => {
@@ -175,7 +175,7 @@ describe('index.js', () => {
                 return Promise.resolve({});
             });
 
-            require('../src/index.js');
+            require('../../src/index.js');
         });
     });
 
@@ -188,15 +188,15 @@ describe('index.js', () => {
         });
 
         // Clear all related modules from cache
-        delete require.cache[require.resolve('../src/index.js')];
-        delete require.cache[require.resolve('../src/get-org-code-stats.js')];
-        delete require.cache[require.resolve('../src/github-stats-core.js')];
+        delete require.cache[require.resolve('../../src/index.js')];
+        delete require.cache[require.resolve('../../src/get-org-code-stats.js')];
+        delete require.cache[require.resolve('../../src/github-stats-core.js')];
 
         // Mock process.exit before requiring the module
         const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => { });
 
         try {
-            require('../src/index.js');
+            require('../../src/index.js');
         } catch (error) {
             // Ignore any errors from the module execution
         }
@@ -214,15 +214,15 @@ describe('index.js', () => {
         });
 
         // Clear all related modules from cache
-        delete require.cache[require.resolve('../src/index.js')];
-        delete require.cache[require.resolve('../src/get-org-code-stats.js')];
-        delete require.cache[require.resolve('../src/github-stats-core.js')];
+        delete require.cache[require.resolve('../../src/index.js')];
+        delete require.cache[require.resolve('../../src/get-org-code-stats.js')];
+        delete require.cache[require.resolve('../../src/github-stats-core.js')];
 
         // Mock process.exit before requiring the module
         const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => { });
 
         try {
-            require('../src/index.js');
+            require('../../src/index.js');
         } catch (error) {
             // Ignore any errors from the module execution
         }
@@ -241,7 +241,7 @@ describe('index.js', () => {
         });
 
         // Clear the module cache and require index.js
-        delete require.cache[require.resolve('../src/index.js')];
+        delete require.cache[require.resolve('../../src/index.js')];
 
         // Wait for the async function to complete
         await new Promise((resolve, reject) => {
@@ -255,7 +255,7 @@ describe('index.js', () => {
                 return Promise.resolve({});
             });
 
-            require('../src/index.js');
+            require('../../src/index.js');
         });
 
         // Should not exit if dates are valid
@@ -271,8 +271,8 @@ describe('index.js', () => {
 
         // Should not throw an error
         expect(() => {
-            delete require.cache[require.resolve('../src/index.js')];
-            require('../src/index.js');
+            delete require.cache[require.resolve('../../src/index.js')];
+            require('../../src/index.js');
         }).not.toThrow();
     });
 
@@ -284,7 +284,7 @@ describe('index.js', () => {
         utils.DEFAULT_TARGET_TEAMS = ['DefaultTeam1', 'DefaultTeam2'];
 
         // Clear the module cache and require index.js
-        delete require.cache[require.resolve('../src/index.js')];
+        delete require.cache[require.resolve('../../src/index.js')];
 
         await new Promise((resolve, reject) => {
             const timeoutId = setTimeout(() => {
@@ -298,7 +298,7 @@ describe('index.js', () => {
                 return Promise.resolve({});
             });
 
-            require('../src/index.js');
+            require('../../src/index.js');
         });
     });
 });
