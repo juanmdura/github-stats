@@ -978,8 +978,8 @@ async function getRepoCommitsForTeam(org, repo, teamMembers, startDate, endDate,
         for (const commit of response.data) {
           const author = commit.author ? commit.author.login : commit.commit.author.email;
 
-          // Check if commit author is in the team
-          if (teamMembers.includes(author)) {
+          // Check if commit author is in the team (or include all if teamMembers is empty)
+          if (teamMembers.length === 0 || teamMembers.includes(author)) {
             try {
               // Get detailed commit info to get line changes
               const detailUrl = `https://api.github.com/repos/${org}/${repo}/commits/${commit.sha}`;
@@ -1060,47 +1060,56 @@ function displayTeamStatsTable(teamStats, startDate, endDate) {
   if (sortedDates.length > 0) {
     console.log('\nDAILY BREAKDOWN:');
     console.log('┌────────────┬─────────────────────────┬──────────────────┬─────────────────┬─────────────┬──────────────┬────────────────────┐');
-    console.log('│ Date       │ Team Name               │ Total Code Lines │ AI Lines        │ AI %        │ PR ID        │ Contributor        │');
+    console.log('│ Date       │ Team Name               │ Total Code Lines │ AI Lines        │ AI %        │ Commit ID    │ Contributor        │');
     console.log('├────────────┼─────────────────────────┼──────────────────┼─────────────────┼─────────────┼──────────────┼────────────────────┤');
 
-    sortedDates.forEach(date => {
+    // Tracking variables for grand totals
+    let grandTotalCodeLines = 0;
+    let grandTotalAiLines = 0;
+
+    sortedDates.forEach((date, dateIndex) => {
+      // Tracking variables for daily subtotals
+      let dailyTotalCodeLines = 0;
+      let dailyTotalAiLines = 0;
+
       Object.entries(teamStats).forEach(([teamName, stats]) => {
         const dayStats = stats.dailyStats[date];
         if (dayStats && dayStats.contributions && dayStats.contributions.length > 0) {
-          // Group contributions by contributor for better readability
-          const contributionsByContributor = {};
-          dayStats.contributions.forEach(contribution => {
-            if (!contributionsByContributor[contribution.author]) {
-              contributionsByContributor[contribution.author] = [];
-            }
-            contributionsByContributor[contribution.author].push(contribution);
+          // Display each contribution as a separate row
+          dayStats.contributions.forEach((contribution, index) => {
+            const dateStr = (index === 0) ? date.padEnd(10) : ''.padEnd(10);
+            const name = (index === 0) ? teamName.padEnd(23) : ''.padEnd(23);
+
+            // Show individual contribution lines for this commit
+            const individualLines = contribution.totalLines;
+            const totalCode = individualLines.toString().padStart(16);
+
+            // For AI lines, we'll estimate based on the individual contribution
+            // and the team's daily AI percentage
+            const teamAiRatio = dayStats.totalCodeLines > 0 ? (dayStats.copilotLines / dayStats.totalCodeLines) : 0;
+            const estimatedAiLines = Math.round(individualLines * teamAiRatio);
+            const aiLines = estimatedAiLines.toString().padStart(15);
+
+            // Calculate AI percentage for this individual contribution
+            const individualAiPercentage = individualLines > 0 ?
+              ((estimatedAiLines / individualLines) * 100).toFixed(1) + '%' :
+              '0.0%';
+            const aiPercent = individualAiPercentage.padStart(11);
+
+            // Commit ID (use commit SHA, truncated)
+            const commitId = contribution.commitSha.substring(0, 8).padEnd(12);
+
+            // Contributor name
+            const contributorName = contribution.author.substring(0, 18).padEnd(18);
+
+            console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │ ${aiPercent} │ ${commitId} │ ${contributorName} │`);
+
+            // Add to daily totals
+            dailyTotalCodeLines += individualLines;
+            dailyTotalAiLines += estimatedAiLines;
           });
-
-          // Display each contributor's contributions
-          Object.entries(contributionsByContributor).forEach(([contributor, contributions], contributorIndex) => {
-            contributions.forEach((contribution, contributionIndex) => {
-              const dateStr = (contributorIndex === 0 && contributionIndex === 0) ? date.padEnd(10) : ''.padEnd(10);
-              const name = (contributorIndex === 0 && contributionIndex === 0) ? teamName.padEnd(23) : ''.padEnd(23);
-              const totalCode = (contributorIndex === 0 && contributionIndex === 0) ? dayStats.totalCodeLines.toString().padStart(16) : ''.padStart(16);
-              const aiLines = (contributorIndex === 0 && contributionIndex === 0) ? dayStats.copilotLines.toString().padStart(15) : ''.padStart(15);
-
-              // Calculate daily AI percentage (only show on first row)
-              const dailyAiPercentage = (contributorIndex === 0 && contributionIndex === 0 && dayStats.totalCodeLines > 0) ?
-                ((dayStats.copilotLines / dayStats.totalCodeLines) * 100).toFixed(1) + '%' :
-                '';
-              const aiPercent = dailyAiPercentage.padStart(11);
-
-              // PR ID (use commit SHA as proxy for PR, truncated)
-              const prId = contribution.commitSha.substring(0, 8).padEnd(12);
-
-              // Contributor name
-              const contributorName = contributor.substring(0, 18).padEnd(18);
-
-              console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │ ${aiPercent} │ ${prId} │ ${contributorName} │`);
-            });
-          });
-        } else if (dayStats) {
-          // Show summary row even if no individual contributions are available
+        } else if (dayStats && dayStats.totalCodeLines > 0) {
+          // Show summary row if no individual contributions are available but we have totals
           const dateStr = date.padEnd(10);
           const name = teamName.padEnd(23);
           const totalCode = dayStats.totalCodeLines.toString().padStart(16);
@@ -1112,13 +1121,46 @@ function displayTeamStatsTable(teamStats, startDate, endDate) {
             '0.0%';
           const aiPercent = dailyAiPercentage.padStart(11);
 
-          const prId = 'N/A'.padEnd(12);
+          const commitId = 'N/A'.padEnd(12);
           const contributorName = 'Multiple/Unknown'.padEnd(18);
 
-          console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │ ${aiPercent} │ ${prId} │ ${contributorName} │`);
+          console.log(`│ ${dateStr} │ ${name} │ ${totalCode} │ ${aiLines} │ ${aiPercent} │ ${commitId} │ ${contributorName} │`);
+
+          // Add to daily totals
+          dailyTotalCodeLines += dayStats.totalCodeLines;
+          dailyTotalAiLines += dayStats.copilotLines;
         }
       });
+
+      // Display daily subtotal
+      if (dailyTotalCodeLines > 0) {
+        const subtotalAiPercentage = dailyTotalCodeLines > 0 ?
+          ((dailyTotalAiLines / dailyTotalCodeLines) * 100).toFixed(1) + '%' :
+          '0.0%';
+
+        console.log('├────────────┼─────────────────────────┼──────────────────┼─────────────────┼─────────────┼──────────────┼────────────────────┤');
+        console.log(`│ ${date.padEnd(10)} │ ${'** DAILY SUBTOTAL **'.padEnd(23)} │ ${dailyTotalCodeLines.toString().padStart(16)} │ ${dailyTotalAiLines.toString().padStart(15)} │ ${subtotalAiPercentage.padStart(11)} │ ${'-'.padEnd(12)} │ ${'-'.padEnd(18)} │`);
+
+        // Add separator line between days (except for the last day)
+        if (dateIndex < sortedDates.length - 1) {
+          console.log('├────────────┼─────────────────────────┼──────────────────┼─────────────────┼─────────────┼──────────────┼────────────────────┤');
+        }
+
+        // Add to grand totals
+        grandTotalCodeLines += dailyTotalCodeLines;
+        grandTotalAiLines += dailyTotalAiLines;
+      }
     });
+
+    // Display grand total
+    if (grandTotalCodeLines > 0) {
+      const grandTotalAiPercentage = grandTotalCodeLines > 0 ?
+        ((grandTotalAiLines / grandTotalCodeLines) * 100).toFixed(1) + '%' :
+        '0.0%';
+
+      console.log('├────────────┼─────────────────────────┼──────────────────┼─────────────────┼─────────────┼──────────────┼────────────────────┤');
+      console.log(`│ ${'ALL DATES'.padEnd(10)} │ ${'*** GRAND TOTAL ***'.padEnd(23)} │ ${grandTotalCodeLines.toString().padStart(16)} │ ${grandTotalAiLines.toString().padStart(15)} │ ${grandTotalAiPercentage.padStart(11)} │ ${'-'.padEnd(12)} │ ${'-'.padEnd(18)} │`);
+    }
 
     console.log('└────────────┴─────────────────────────┴──────────────────┴─────────────────┴─────────────┴──────────────┴────────────────────┘');
   }

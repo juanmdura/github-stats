@@ -39,16 +39,16 @@ async function collectStats(org, startDate, endDate, targetTeams, token) {
   // Show date filtering information if applicable
   displayDateFilters(startDate, endDate);
 
-  // STEP 1: Get all PRs merged in the period across all repositories
-  const allMergedPRs = await getAllMergedPRs(org, allRepos, startDate, endDate, headers);
+  // STEP 1: Get all commits in the period across all repositories
+  const allCommits = await getAllCommits(org, allRepos, startDate, endDate, headers);
 
-  // STEP 2: Filter PRs by members of configured groups (teams)
-  const teamFilteredPRs = await filterPRsByTeamMembers(allMergedPRs, teams, org, headers);
+  // STEP 2: Filter commits by members of configured groups (teams)
+  const teamFilteredCommits = await filterCommitsByTeamMembers(allCommits, teams, org, headers);
 
-  console.log(`\nFound ${teamFilteredPRs.length} PRs from target team members out of ${allMergedPRs.length} total PRs`);
+  console.log(`\nFound ${teamFilteredCommits.length} commits from target team members out of ${allCommits.length} total commits`);
 
-  // STEPS 3 & 4: Count lines of code modified in those PRs and AI-assisted lines
-  const codeStats = await calculateCodeStats(org, teamFilteredPRs, headers);
+  // STEPS 3 & 4: Count lines of code modified in those commits and AI-assisted lines
+  const codeStats = await calculateCodeStatsFromCommits(org, teamFilteredCommits, headers);
 
   // STEP 5: Calculate per-team daily statistics
   const teamStats = await utils.calculateTeamDailyStats(org, teams, startDate, endDate, headers);
@@ -59,9 +59,9 @@ async function collectStats(org, startDate, endDate, targetTeams, token) {
   // Generate summary report
   const results = {
     repositories: allRepos.length,
-    prs: {
-      total: allMergedPRs.length,
-      teamFiltered: teamFilteredPRs.length
+    commits: {
+      total: allCommits.length,
+      teamFiltered: teamFilteredCommits.length
     },
     codeChanges: {
       additions: codeStats.totalAdditions,
@@ -69,11 +69,11 @@ async function collectStats(org, startDate, endDate, targetTeams, token) {
       aiLines: codeStats.totalAILines,
       total: codeStats.totalAdditions + codeStats.totalDeletions
     },
-    details: codeStats.prDetails
+    details: codeStats.commitDetails
   };
 
   // Print summary
-  displaySummaryReport(results, allRepos.length, teamFilteredPRs.length);
+  displaySummaryReport(results, allRepos.length, teamFilteredCommits.length);
 
   return results;
 }
@@ -151,51 +151,51 @@ function displayDateFilters(startDate, endDate) {
 }
 
 /**
- * Get all merged PRs across all repositories in the date range
+ * Get all commits across all repositories in the date range
  */
-async function getAllMergedPRs(org, allRepos, startDate, endDate, headers) {
-  console.log('\n=== Fetching merged PRs ===');
-  let allMergedPRs = [];
+async function getAllCommits(org, allRepos, startDate, endDate, headers) {
+  console.log('\n=== Fetching commits ===');
+  let allCommits = [];
 
   for (const repo of allRepos) {
-    const mergedPRs = await utils.getRepoMergedPRs(org, repo, startDate, endDate, headers);
+    const repoCommits = await utils.getRepoCommitsForTeam(org, repo, [], startDate, endDate, headers);
 
-    // Store repo name with each PR for easier reference
-    mergedPRs.forEach(pr => {
-      pr.repo = repo;
+    // Store repo name with each commit for easier reference
+    repoCommits.forEach(commit => {
+      commit.repo = repo;
     });
 
-    allMergedPRs = allMergedPRs.concat(mergedPRs);
+    allCommits = allCommits.concat(repoCommits);
   }
 
-  console.log(`\nFound a total of ${allMergedPRs.length} merged PRs across all repositories in the specified date range`);
-  return allMergedPRs;
+  console.log(`\nFound a total of ${allCommits.length} commits across all repositories in the specified date range`);
+  return allCommits;
 }
 
 /**
- * Filter PRs by team membership
+ * Filter commits by team membership
  */
-async function filterPRsByTeamMembers(allMergedPRs, teams, org, headers) {
-  console.log('\n=== Filtering PRs by team members ===');
-  const teamFilteredPRs = [];
+async function filterCommitsByTeamMembers(allCommits, teams, org, headers) {
+  console.log('\n=== Filtering commits by team members ===');
+  const teamFilteredCommits = [];
 
-  for (const pr of allMergedPRs) {
-    // Get PR author
-    const author = pr.user.login;
+  for (const commit of allCommits) {
+    // Get commit author
+    const author = commit.author;
 
     // Check if author is in target teams
     if (await utils.isUserInTargetTeams(author, teams, org, headers)) {
-      teamFilteredPRs.push(pr);
+      teamFilteredCommits.push(commit);
     }
   }
 
-  return teamFilteredPRs;
+  return teamFilteredCommits;
 }
 
 /**
- * Calculate code statistics from PRs
+ * Calculate code statistics from commits
  */
-async function calculateCodeStats(org, teamFilteredPRs, headers) {
+async function calculateCodeStatsFromCommits(org, teamFilteredCommits, headers) {
   console.log('\n=== Calculating code changes ===');
 
   // Get Copilot metrics for the organization to improve AI detection
@@ -205,22 +205,28 @@ async function calculateCodeStats(org, teamFilteredPRs, headers) {
   let totalDeletions = 0;
   let totalAILines = 0;
 
-  const prDetails = [];
+  const commitDetails = [];
 
-  for (const pr of teamFilteredPRs) {
-    const details = await utils.getPRDetails(org, pr.repo, pr.number, headers);
+  for (const commit of teamFilteredCommits) {
+    // Commit already has additions/deletions from getRepoCommitsForTeam
+    commitDetails.push({
+      sha: commit.sha,
+      author: commit.author,
+      date: commit.date,
+      additions: commit.additions,
+      deletions: commit.deletions,
+      message: commit.message,
+      repo: commit.repo
+    });
 
-    if (details) {
-      prDetails.push(details);
-      totalAdditions += details.additions;
-      totalDeletions += details.deletions;
+    totalAdditions += commit.additions;
+    totalDeletions += commit.deletions;
 
-      // STEP 4: Count lines of code modified with AI assistance using enhanced detection
-      const aiAnalysis = await utils.analyzeAICodeInPR(org, pr.repo, details, headers, copilotMetrics);
-      if (aiAnalysis.isAIAssisted) {
-        totalAILines += aiAnalysis.aiLines;
-        console.log(`  PR #${details.number} (${details.title}) is AI-assisted: ${aiAnalysis.reason} (~${aiAnalysis.aiLines} lines)`);
-      }
+    // STEP 4: Count lines of code modified with AI assistance using enhanced detection
+    const aiAnalysis = utils.analyzeCommitForCopilot(commit, copilotMetrics);
+    if (aiAnalysis.isCopilot) {
+      totalAILines += aiAnalysis.estimatedCopilotLines;
+      console.log(`  Commit ${commit.sha.substring(0, 8)} by ${commit.author} is AI-assisted: ${aiAnalysis.reason} (~${aiAnalysis.estimatedCopilotLines} lines)`);
     }
   }
 
@@ -228,17 +234,17 @@ async function calculateCodeStats(org, teamFilteredPRs, headers) {
     totalAdditions,
     totalDeletions,
     totalAILines,
-    prDetails
+    commitDetails
   };
 }
 
 /**
  * Display summary report
  */
-function displaySummaryReport(results, repoCount, prCount) {
+function displaySummaryReport(results, repoCount, commitCount) {
   console.log(`\n=== Summary ===`);
   console.log(`Total repositories analyzed: ${repoCount}`);
-  console.log(`Total PRs from target teams: ${prCount}`);
+  console.log(`Total commits from target teams: ${commitCount}`);
   console.log(`- Additions: ${results.codeChanges.additions}`);
   console.log(`- Deletions: ${results.codeChanges.deletions}`);
   console.log(`- Total lines modified: ${results.codeChanges.total}`);
@@ -246,9 +252,9 @@ function displaySummaryReport(results, repoCount, prCount) {
 
 
   /*if (results.details.length > 0) {
-    console.log(`\n=== Detailed PRs Analyzed (${results.details.length}) ===`);
-    results.details.forEach(pr => {
-      console.log(`- PR #${pr.number} (${pr.title}) in ${pr.repo}: ${pr.additions} additions, ${pr.deletions} deletions`);
+    console.log(`\n=== Detailed Commits Analyzed (${results.details.length}) ===`);
+    results.details.forEach(commit => {
+      console.log(`- Commit ${commit.sha.substring(0, 8)} by ${commit.author} in ${commit.repo}: ${commit.additions} additions, ${commit.deletions} deletions`);
     });
   }*/
 }

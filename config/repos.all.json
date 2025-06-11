@@ -199,6 +199,10 @@
         {
             "repo": "Zubale/supply-demand-actions-core",
             "branch": "main"
+        },
+        {
+            "repo": "Zubale/wallet",
+            "branch": "main"
         }
     ]
 }
