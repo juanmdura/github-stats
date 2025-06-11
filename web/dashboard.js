@@ -945,42 +945,19 @@ class GitHubStatsDashboard {
 
         validationTable.style.display = 'block';
 
-        // Group data by contributor and repository for aggregation
-        const aggregatedData = {};
-        let totalCommits = 0;
-        let totalCodeLines = 0;
-        let totalAILines = 0;
-
-        this.filteredData.dailyBatches.forEach(row => {
-            const key = `${row.Date}_${row.Team}_${row.Contributor}_${row.Repository}`;
-
-            if (!aggregatedData[key]) {
-                aggregatedData[key] = {
-                    date: row.Date,
-                    team: row.Team,
-                    contributor: row.Contributor,
-                    repository: row.Repository,
-                    commits: 0,
-                    codeLines: 0,
-                    aiLines: 0
-                };
-            }
-
-            aggregatedData[key].commits += 1;
-            aggregatedData[key].codeLines += parseInt(row.CodeLines) || 0;
-            aggregatedData[key].aiLines += parseInt(row.AILines) || 0;
-
-            totalCommits += 1;
-            totalCodeLines += parseInt(row.CodeLines) || 0;
-            totalAILines += parseInt(row.AILines) || 0;
-        });
-
-        // Convert to array and calculate AI percentage
-        const tableData = Object.values(aggregatedData)
-            .map(row => ({
-                ...row,
-                aiPercentage: row.codeLines > 0 ? (row.aiLines / row.codeLines * 100) : 0
-            }));
+        // Use individual commit data instead of aggregating
+        const tableData = this.filteredData.dailyBatches.map(row => ({
+            date: row.Date,
+            team: row.Team,
+            contributor: row.Contributor,
+            repository: row.Repository,
+            commitSHA: row.CommitSHA,
+            commitMessage: row.CommitMessage,
+            commits: 1, // Each row is one commit
+            codeLines: parseInt(row.CodeLines) || 0,
+            aiLines: parseInt(row.AILines) || 0,
+            aiPercentage: parseFloat(row.AIPercentage) || 0
+        }));
 
         // Apply current sorting
         const sortedData = this.sortTableData(
@@ -990,6 +967,10 @@ class GitHubStatsDashboard {
             this.currentSort.type
         );
 
+        let totalCommits = 0;
+        let totalCodeLines = 0;
+        let totalAILines = 0;
+
         // Populate table rows
         sortedData.forEach(row => {
             const tr = document.createElement('tr');
@@ -997,11 +978,19 @@ class GitHubStatsDashboard {
             const aiClass = row.aiPercentage >= 15 ? 'ai-high' :
                 row.aiPercentage >= 5 ? 'ai-medium' : 'ai-low';
 
+            // Create GitHub commit link (assuming GitHub.com/Zubale org)
+            const commitLink = `https://github.com/Zubale/${row.repository}/commit/${row.commitSHA}`;
+            const shortSHA = row.commitSHA ? row.commitSHA.substring(0, 7) : 'N/A';
+            const commitLinkHtml = row.commitSHA ?
+                `<a href="${commitLink}" target="_blank" class="commit-link" title="${row.commitMessage}">${shortSHA}</a>` :
+                'N/A';
+
             tr.innerHTML = `
                 <td>${row.date}</td>
                 <td>${row.team}</td>
                 <td>${row.contributor}</td>
                 <td title="${row.repository}">${row.repository.length > 25 ? row.repository.substring(0, 25) + '...' : row.repository}</td>
+                <td>${commitLinkHtml}</td>
                 <td>${row.commits}</td>
                 <td>${row.codeLines.toLocaleString()}</td>
                 <td>${row.aiLines.toLocaleString()}</td>
@@ -1009,6 +998,10 @@ class GitHubStatsDashboard {
             `;
 
             tableBody.appendChild(tr);
+
+            totalCommits += row.commits;
+            totalCodeLines += row.codeLines;
+            totalAILines += row.aiLines;
         });
 
         // Calculate and display table statistics
