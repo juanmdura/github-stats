@@ -34,3 +34,6 @@ temp/
 
 # Test coverage reports
 tests/coverage/
+
+# Generated output files
+output/
