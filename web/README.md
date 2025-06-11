@@ -4,23 +4,32 @@ A beautiful, interactive web dashboard to visualize your GitHub organization's c
 
 ## ✨ Features
 
-### 📈 Interactive Charts
-- **Time Series Trends** - Track daily code lines and AI assistance over time
-- **AI Assistance Analysis** - Monitor AI-assisted coding trends
-- **Team Comparison** - Compare productivity across teams
-- **Repository Activity** - Analyze commit patterns by repository
-- **Day-of-Week Analysis** - Discover when your team is most productive
+### 📈 AI-Focused Interactive Charts
+- **🤖 AI Assistance Trend** - Line chart showing AI usage over time
+- **🏢 AI Teams** - Pie chart showing AI assistance percentage per team
+- **📦 AI Repos** - Pie chart showing AI assistance per repository (using real data)
+- **👥 AI Contributors** - Pie chart showing AI assistance per contributor (using real data)
+- **📅 AI Days** - Polar area chart showing AI assistance by day of week
 
-### 🎛️ Dynamic Filtering
+### 🎛️ Advanced Filtering System
 - **Team Filtering** - Focus on specific teams
+- **Contributor Filtering** - Analyze individual contributor patterns
+- **Repository Filtering** - Deep-dive into specific repositories
 - **Date Range Selection** - Analyze custom time periods
 - **Real-time Updates** - Charts update instantly with filter changes
+
+### 📋 Data Validation Table
+- **Detailed Data View** - Comprehensive table showing all filtered data
+- **AI Percentage Validation** - Color-coded AI assistance levels
+- **Summary Statistics** - Total commits, contributors, repositories, and AI metrics
+- **Interactive Sorting** - Data sorted by date and AI percentage
+- **Mobile Responsive** - Works perfectly on all device sizes
 
 ### 📊 Key Metrics
 - Total code lines and AI-assisted lines
 - Commit counts and contributor statistics
 - Repository activity breakdown
-- AI assistance percentages
+- AI assistance percentages with real data validation
 
 ## 🚀 Quick Start
 

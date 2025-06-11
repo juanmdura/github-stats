@@ -7,6 +7,8 @@ class GitHubStatsDashboard {
         this.dailyBatchesData = null;
         this.charts = {};
         this.filteredData = {};
+        this.currentSort = { column: 'date', direction: 'desc', type: 'date' };
+        this.tableSortingInitialized = false;
 
         this.initializeEventListeners();
     }
@@ -14,6 +16,14 @@ class GitHubStatsDashboard {
     initializeEventListeners() {
         // Filter listeners
         document.getElementById('teamFilter').addEventListener('change', () => {
+            this.applyFilters();
+        });
+
+        document.getElementById('contributorFilter').addEventListener('change', () => {
+            this.applyFilters();
+        });
+
+        document.getElementById('repositoryFilter').addEventListener('change', () => {
             this.applyFilters();
         });
 
@@ -27,6 +37,85 @@ class GitHubStatsDashboard {
 
         // Auto-load all available CSV files on startup
         this.loadAllAvailableFiles();
+    }
+
+    initializeTableSorting() {
+        const tableHeaders = document.querySelectorAll('.data-table th.sortable');
+        tableHeaders.forEach(header => {
+            // Remove any existing listeners to prevent duplicates
+            const existingHandler = header._sortHandler;
+            if (existingHandler) {
+                header.removeEventListener('click', existingHandler);
+            }
+
+            // Create new handler and store reference
+            const handler = (e) => {
+                const column = e.target.getAttribute('data-column');
+                const type = e.target.getAttribute('data-type');
+                this.sortTable(column, type);
+            };
+
+            header._sortHandler = handler;
+            header.addEventListener('click', handler);
+        });
+    }
+
+    sortTable(column, type) {
+        // Toggle sort direction if same column, otherwise default to descending
+        if (this.currentSort.column === column) {
+            this.currentSort.direction = this.currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.currentSort.direction = 'desc';
+        }
+
+        this.currentSort.column = column;
+        this.currentSort.type = type;
+
+        // Update table header styles
+        this.updateTableHeaderStyles();
+
+        // Re-render the table with sorted data
+        this.renderValidationTable();
+    }
+
+    updateTableHeaderStyles() {
+        const tableHeaders = document.querySelectorAll('.data-table th.sortable');
+        tableHeaders.forEach(header => {
+            header.classList.remove('sort-asc', 'sort-desc');
+            const headerColumn = header.getAttribute('data-column');
+            if (headerColumn === this.currentSort.column) {
+                header.classList.add(this.currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+        });
+    }
+
+    sortTableData(data, column, direction, type) {
+        return [...data].sort((a, b) => {
+            let aVal = a[column];
+            let bVal = b[column];
+
+            // Handle different data types
+            switch (type) {
+                case 'number':
+                    aVal = parseFloat(aVal) || 0;
+                    bVal = parseFloat(bVal) || 0;
+                    break;
+                case 'date':
+                    aVal = new Date(aVal);
+                    bVal = new Date(bVal);
+                    break;
+                case 'text':
+                    aVal = String(aVal).toLowerCase();
+                    bVal = String(bVal).toLowerCase();
+                    break;
+            }
+
+            let comparison = 0;
+            if (aVal > bVal) comparison = 1;
+            if (aVal < bVal) comparison = -1;
+
+            return direction === 'asc' ? comparison : -comparison;
+        });
     }
 
     showStatus(message, type = 'success') {
@@ -123,9 +212,65 @@ class GitHubStatsDashboard {
         });
     }
 
+    updateContributorFilter() {
+        const contributorFilter = document.getElementById('contributorFilter');
+        const contributors = new Set();
+
+        if (this.dailyBatchesData) {
+            this.dailyBatchesData.forEach(row => {
+                if (row.Contributor) contributors.add(row.Contributor);
+            });
+        }
+
+        if (this.repositoryActivityData) {
+            this.repositoryActivityData.forEach(row => {
+                if (row.Author) contributors.add(row.Author);
+            });
+        }
+
+        // Clear existing options except "All Contributors"
+        contributorFilter.innerHTML = '<option value="">All Contributors</option>';
+
+        // Add contributor options
+        Array.from(contributors).sort().forEach(contributor => {
+            const option = document.createElement('option');
+            option.value = contributor;
+            option.textContent = contributor;
+            contributorFilter.appendChild(option);
+        });
+    }
+
+    updateRepositoryFilter() {
+        const repositoryFilter = document.getElementById('repositoryFilter');
+        const repositories = new Set();
+
+        if (this.dailyBatchesData) {
+            this.dailyBatchesData.forEach(row => {
+                if (row.Repository) repositories.add(row.Repository);
+            });
+        }
+
+        if (this.repositoryActivityData) {
+            this.repositoryActivityData.forEach(row => {
+                if (row.Repository) repositories.add(row.Repository);
+            });
+        }
+
+        // Clear existing options except "All Repositories"
+        repositoryFilter.innerHTML = '<option value="">All Repositories</option>';
+
+        // Add repository options
+        Array.from(repositories).sort().forEach(repository => {
+            const option = document.createElement('option');
+            option.value = repository;
+            option.textContent = repository;
+            repositoryFilter.appendChild(option);
+        });
+    }
+
     updateDateRange() {
         const allDates = [];
-        
+
         if (this.timeSeriesData) {
             this.timeSeriesData.forEach(row => {
                 if (row.Date) allDates.push(new Date(row.Date));
@@ -157,6 +302,8 @@ class GitHubStatsDashboard {
 
     applyFilters() {
         const teamFilter = document.getElementById('teamFilter').value;
+        const contributorFilter = document.getElementById('contributorFilter').value;
+        const repositoryFilter = document.getElementById('repositoryFilter').value;
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
 
@@ -185,6 +332,8 @@ class GitHubStatsDashboard {
             this.filteredData.repositoryActivity = this.repositoryActivityData.filter(row => {
                 let include = true;
 
+                if (contributorFilter && row.Author !== contributorFilter) include = false;
+                if (repositoryFilter && row.Repository !== repositoryFilter) include = false;
                 if (startDate && row.Date < startDate) include = false;
                 if (endDate && row.Date > endDate) include = false;
 
@@ -198,6 +347,8 @@ class GitHubStatsDashboard {
                 let include = true;
 
                 if (teamFilter && row.Team !== teamFilter) include = false;
+                if (contributorFilter && row.Contributor !== contributorFilter) include = false;
+                if (repositoryFilter && row.Repository !== repositoryFilter) include = false;
                 if (startDate && row.Date < startDate) include = false;
                 if (endDate && row.Date > endDate) include = false;
 
@@ -211,6 +362,7 @@ class GitHubStatsDashboard {
     updateDashboard() {
         this.renderStats();
         this.renderCharts();
+        this.renderValidationTable();
     }
 
     async loadAllAvailableFiles() {
@@ -231,12 +383,12 @@ class GitHubStatsDashboard {
                 if (timeSeriesFiles.length > 0) {
                     await this.loadAndCombineFiles(timeSeriesFiles, 'timeSeries');
                 }
-                
+
                 // Auto-load all team performance files and combine them
                 if (teamPerformanceFiles.length > 0) {
                     await this.loadAndCombineFiles(teamPerformanceFiles, 'teamPerformance');
                 }
-                
+
                 // Auto-load all repository activity files and combine them
                 if (repositoryActivityFiles.length > 0) {
                     await this.loadAndCombineFiles(repositoryActivityFiles, 'repositoryActivity');
@@ -285,6 +437,8 @@ class GitHubStatsDashboard {
             console.log(`Combined ${dataType} data: ${allData.length} total records from ${loadedCount} files`);
 
             this.updateTeamFilter();
+            this.updateContributorFilter();
+            this.updateRepositoryFilter();
             this.updateDateRange();
             this.applyFilters();
         }
@@ -592,7 +746,7 @@ class GitHubStatsDashboard {
                     },
                     tooltip: {
                         callbacks: {
-                            label: function(context) {
+                            label: function (context) {
                                 const item = repoAIData[context.dataIndex];
                                 return `${context.label}: ${context.parsed.toFixed(1)}% AI (${item.commits} commits)`;
                             }
@@ -664,7 +818,7 @@ class GitHubStatsDashboard {
                     },
                     tooltip: {
                         callbacks: {
-                            label: function(context) {
+                            label: function (context) {
                                 const item = contributorAIData[context.dataIndex];
                                 return `${context.label}: ${context.parsed.toFixed(1)}% AI (${item.commits} commits)`;
                             }
@@ -720,8 +874,8 @@ class GitHubStatsDashboard {
                 datasets: [{
                     data: aiPercentages,
                     backgroundColor: [
-                        'rgba(16, 185, 129, 0.8)', 'rgba(5, 150, 105, 0.8)', 'rgba(4, 120, 87, 0.8)', 
-                        'rgba(6, 95, 70, 0.8)', 'rgba(6, 78, 59, 0.8)', 'rgba(2, 44, 34, 0.8)', 
+                        'rgba(16, 185, 129, 0.8)', 'rgba(5, 150, 105, 0.8)', 'rgba(4, 120, 87, 0.8)',
+                        'rgba(6, 95, 70, 0.8)', 'rgba(6, 78, 59, 0.8)', 'rgba(2, 44, 34, 0.8)',
                         'rgba(16, 185, 129, 0.6)'
                     ],
                     borderColor: [
@@ -773,6 +927,132 @@ class GitHubStatsDashboard {
         }
 
         return colors.slice(0, count);
+    }
+
+    renderValidationTable() {
+        const validationTable = document.getElementById('validationTable');
+        const tableBody = document.getElementById('validationTableBody');
+        const tableStats = document.getElementById('tableStats');
+
+        // Clear existing table content
+        tableBody.innerHTML = '';
+        tableStats.innerHTML = '';
+
+        if (!this.filteredData.dailyBatches || this.filteredData.dailyBatches.length === 0) {
+            validationTable.style.display = 'none';
+            return;
+        }
+
+        validationTable.style.display = 'block';
+
+        // Group data by contributor and repository for aggregation
+        const aggregatedData = {};
+        let totalCommits = 0;
+        let totalCodeLines = 0;
+        let totalAILines = 0;
+
+        this.filteredData.dailyBatches.forEach(row => {
+            const key = `${row.Date}_${row.Team}_${row.Contributor}_${row.Repository}`;
+
+            if (!aggregatedData[key]) {
+                aggregatedData[key] = {
+                    date: row.Date,
+                    team: row.Team,
+                    contributor: row.Contributor,
+                    repository: row.Repository,
+                    commits: 0,
+                    codeLines: 0,
+                    aiLines: 0
+                };
+            }
+
+            aggregatedData[key].commits += 1;
+            aggregatedData[key].codeLines += parseInt(row.CodeLines) || 0;
+            aggregatedData[key].aiLines += parseInt(row.AILines) || 0;
+
+            totalCommits += 1;
+            totalCodeLines += parseInt(row.CodeLines) || 0;
+            totalAILines += parseInt(row.AILines) || 0;
+        });
+
+        // Convert to array and calculate AI percentage
+        const tableData = Object.values(aggregatedData)
+            .map(row => ({
+                ...row,
+                aiPercentage: row.codeLines > 0 ? (row.aiLines / row.codeLines * 100) : 0
+            }));
+
+        // Apply current sorting
+        const sortedData = this.sortTableData(
+            tableData,
+            this.currentSort.column,
+            this.currentSort.direction,
+            this.currentSort.type
+        );
+
+        // Populate table rows
+        sortedData.forEach(row => {
+            const tr = document.createElement('tr');
+
+            const aiClass = row.aiPercentage >= 15 ? 'ai-high' :
+                row.aiPercentage >= 5 ? 'ai-medium' : 'ai-low';
+
+            tr.innerHTML = `
+                <td>${row.date}</td>
+                <td>${row.team}</td>
+                <td>${row.contributor}</td>
+                <td title="${row.repository}">${row.repository.length > 25 ? row.repository.substring(0, 25) + '...' : row.repository}</td>
+                <td>${row.commits}</td>
+                <td>${row.codeLines.toLocaleString()}</td>
+                <td>${row.aiLines.toLocaleString()}</td>
+                <td><span class="ai-percentage ${aiClass}">${row.aiPercentage.toFixed(1)}%</span></td>
+            `;
+
+            tableBody.appendChild(tr);
+        });
+
+        // Calculate and display table statistics
+        const avgAIPercentage = totalCodeLines > 0 ? (totalAILines / totalCodeLines * 100) : 0;
+        const uniqueContributors = new Set(sortedData.map(row => row.contributor)).size;
+        const uniqueRepositories = new Set(sortedData.map(row => row.repository)).size;
+
+        tableStats.innerHTML = `
+            <div class="table-stat">
+                <div class="label">Total Rows</div>
+                <div class="value">${sortedData.length}</div>
+            </div>
+            <div class="table-stat">
+                <div class="label">Total Commits</div>
+                <div class="value">${totalCommits}</div>
+            </div>
+            <div class="table-stat">
+                <div class="label">Contributors</div>
+                <div class="value">${uniqueContributors}</div>
+            </div>
+            <div class="table-stat">
+                <div class="label">Repositories</div>
+                <div class="value">${uniqueRepositories}</div>
+            </div>
+            <div class="table-stat">
+                <div class="label">Total Code Lines</div>
+                <div class="value">${totalCodeLines.toLocaleString()}</div>
+            </div>
+            <div class="table-stat">
+                <div class="label">Total AI Lines</div>
+                <div class="value">${totalAILines.toLocaleString()}</div>
+            </div>
+            <div class="table-stat">
+                <div class="label">Average AI %</div>
+                <div class="value">${avgAIPercentage.toFixed(1)}%</div>
+            </div>
+        `;
+
+        // Initialize table sorting only once
+        if (!this.tableSortingInitialized) {
+            this.initializeTableSorting();
+            this.tableSortingInitialized = true;
+        }
+        this.updateTableHeaderStyles();
     }
 }
 
