@@ -535,15 +535,41 @@ class GitHubStatsDashboard {
 
         // Prioritize daily batch data for accurate filtered calculations
         if (this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0) {
-            const data = this.filteredData.dailyBatches;
+            const data = this.filteredData.dailyBatches;            // Deduplicate commits to avoid double-counting contributors in multiple teams
+            const uniqueCommits = new Map();
+            const contributors = new Set();
+            const repositories = new Set();
+            const teams = new Set();
 
-            // Calculate totals from individual commits
-            stats.totalCodeLines = data.reduce((sum, row) => sum + (parseInt(row.CodeLines) || 0), 0);
-            stats.totalAILines = data.reduce((sum, row) => sum + (parseInt(row.AILines) || 0), 0);
-            stats.totalCommits = data.length; // Each row is one commit
-            stats.activeContributors = new Set(data.map(row => row.Team)).size;
-            stats.repositories = new Set(data.map(row => row.Repository)).size;
-            stats.uniqueAuthors = new Set(data.map(row => row.Contributor)).size;
+            data.forEach(row => {
+                const commitKey = `${row.Contributor}_${row.CommitSHA}_${row.Repository}`;
+                const codeLines = parseInt(row.CodeLines) || 0;
+                const aiLines = parseInt(row.AILines) || 0;
+
+                // If commit already exists, keep the one with higher AI assistance
+                if (!uniqueCommits.has(commitKey) || (uniqueCommits.get(commitKey).aiLines < aiLines)) {
+                    uniqueCommits.set(commitKey, {
+                        codeLines: codeLines,
+                        aiLines: aiLines,
+                        contributor: row.Contributor,
+                        repository: row.Repository,
+                        team: row.Team
+                    });
+                }
+
+                contributors.add(row.Contributor);
+                repositories.add(row.Repository);
+                teams.add(row.Team);
+            });
+
+            // Calculate totals from unique commits only
+            const uniqueCommitValues = Array.from(uniqueCommits.values());
+            stats.totalCodeLines = uniqueCommitValues.reduce((sum, commit) => sum + commit.codeLines, 0);
+            stats.totalAILines = uniqueCommitValues.reduce((sum, commit) => sum + commit.aiLines, 0);
+            stats.totalCommits = uniqueCommits.size; // Count of unique commits
+            stats.activeContributors = teams.size;
+            stats.repositories = repositories.size;
+            stats.uniqueAuthors = contributors.size;
 
             if (stats.totalCodeLines > 0) {
                 stats.aiPercentage = (stats.totalAILines / stats.totalCodeLines * 100);
@@ -642,13 +668,13 @@ class GitHubStatsDashboard {
         }
 
         // Teams & Contributors section: AI Teams and AI Contributors charts
-        if (hasTimeSeriesData) {
+        if (hasDailyBatchData) {
             this.renderAITeamsChart(teamCharts);
         } else {
             teamCharts.innerHTML = `
                 <div class="chart-container">
                     <h3>AI Teams</h3>
-                    <p>No team data available with current filters. Team charts require time series data.</p>
+                    <p>No team data available with current filters. Team charts require daily batch data.</p>
                 </div>
             `;
         }
@@ -814,7 +840,7 @@ class GitHubStatsDashboard {
         const canvas = chartContainer.querySelector('canvas');
         const ctx = canvas.getContext('2d');
 
-        const data = this.filteredData.timeSeries;
+        const data = this.filteredData.dailyBatches;
         const teamFilter = document.getElementById('teamFilter').value;
 
         if (!data || data.length === 0) {
@@ -838,14 +864,32 @@ class GitHubStatsDashboard {
         }
 
         const teamData = {};
+        const uniqueCommits = new Map();
 
-        // Calculate AI assistance percentage per team
+        // Calculate AI assistance percentage per team, avoiding double-counting
+        // and taking the maximum AI assistance value for duplicate commits
         data.forEach(row => {
-            if (!teamData[row.Team]) {
-                teamData[row.Team] = { totalCodeLines: 0, totalAILines: 0 };
+            const commitKey = `${row.Contributor}_${row.CommitSHA}_${row.Repository}`;
+            const codeLines = parseInt(row.CodeLines) || 0;
+            const aiLines = parseInt(row.AILines) || 0;
+
+            // If commit already exists, keep the one with higher AI assistance
+            if (!uniqueCommits.has(commitKey) || (uniqueCommits.get(commitKey).aiLines < aiLines)) {
+                uniqueCommits.set(commitKey, {
+                    codeLines: codeLines,
+                    aiLines: aiLines,
+                    team: row.Team
+                });
             }
-            teamData[row.Team].totalCodeLines += row.DailyCodeLines || 0;
-            teamData[row.Team].totalAILines += row.DailyAILines || 0;
+        });
+
+        // Now aggregate by team using the unique commits
+        uniqueCommits.forEach(commit => {
+            if (!teamData[commit.team]) {
+                teamData[commit.team] = { totalCodeLines: 0, totalAILines: 0 };
+            }
+            teamData[commit.team].totalCodeLines += commit.codeLines;
+            teamData[commit.team].totalAILines += commit.aiLines;
         });
 
         // Calculate AI percentages and sort teams by AI percentage
@@ -901,19 +945,35 @@ class GitHubStatsDashboard {
         container.appendChild(chartContainer);
 
         const canvas = chartContainer.querySelector('canvas');
-        const ctx = canvas.getContext('2d');
-
-        const data = this.filteredData.dailyBatches;
+        const ctx = canvas.getContext('2d'); const data = this.filteredData.dailyBatches;
         const repoData = {};
+        const uniqueCommits = new Map();
 
-        // Calculate actual AI percentages per repository from daily batch data
+        // Calculate actual AI percentages per repository from daily batch data, avoiding double-counting
+        // and taking the maximum AI assistance value for duplicate commits
         data.forEach(row => {
-            if (!repoData[row.Repository]) {
-                repoData[row.Repository] = { totalCodeLines: 0, totalAILines: 0, commits: 0 };
+            const commitKey = `${row.Contributor}_${row.CommitSHA}_${row.Repository}`;
+            const codeLines = parseInt(row.CodeLines) || 0;
+            const aiLines = parseInt(row.AILines) || 0;
+
+            // If commit already exists, keep the one with higher AI assistance
+            if (!uniqueCommits.has(commitKey) || (uniqueCommits.get(commitKey).aiLines < aiLines)) {
+                uniqueCommits.set(commitKey, {
+                    codeLines: codeLines,
+                    aiLines: aiLines,
+                    repository: row.Repository
+                });
             }
-            repoData[row.Repository].totalCodeLines += parseInt(row.CodeLines) || 0;
-            repoData[row.Repository].totalAILines += parseInt(row.AILines) || 0;
-            repoData[row.Repository].commits += 1;
+        });
+
+        // Now aggregate by repository using the unique commits
+        uniqueCommits.forEach(commit => {
+            if (!repoData[commit.repository]) {
+                repoData[commit.repository] = { totalCodeLines: 0, totalAILines: 0, commits: 0 };
+            }
+            repoData[commit.repository].totalCodeLines += commit.codeLines;
+            repoData[commit.repository].totalAILines += commit.aiLines;
+            repoData[commit.repository].commits += 1;
         });
 
         // Calculate AI percentages and prepare data for chart
@@ -973,19 +1033,35 @@ class GitHubStatsDashboard {
         container.appendChild(chartContainer);
 
         const canvas = chartContainer.querySelector('canvas');
-        const ctx = canvas.getContext('2d');
-
-        const data = this.filteredData.dailyBatches;
+        const ctx = canvas.getContext('2d'); const data = this.filteredData.dailyBatches;
         const contributorData = {};
+        const uniqueCommits = new Map();
 
-        // Calculate actual AI percentages per contributor from daily batch data
+        // Calculate actual AI percentages per contributor from daily batch data, avoiding double-counting
+        // and taking the maximum AI assistance value for duplicate commits
         data.forEach(row => {
-            if (!contributorData[row.Contributor]) {
-                contributorData[row.Contributor] = { totalCodeLines: 0, totalAILines: 0, commits: 0 };
+            const commitKey = `${row.Contributor}_${row.CommitSHA}_${row.Repository}`;
+            const codeLines = parseInt(row.CodeLines) || 0;
+            const aiLines = parseInt(row.AILines) || 0;
+
+            // If commit already exists, keep the one with higher AI assistance
+            if (!uniqueCommits.has(commitKey) || (uniqueCommits.get(commitKey).aiLines < aiLines)) {
+                uniqueCommits.set(commitKey, {
+                    codeLines: codeLines,
+                    aiLines: aiLines,
+                    contributor: row.Contributor
+                });
             }
-            contributorData[row.Contributor].totalCodeLines += parseInt(row.CodeLines) || 0;
-            contributorData[row.Contributor].totalAILines += parseInt(row.AILines) || 0;
-            contributorData[row.Contributor].commits += 1;
+        });
+
+        // Now aggregate by contributor using the unique commits
+        uniqueCommits.forEach(commit => {
+            if (!contributorData[commit.contributor]) {
+                contributorData[commit.contributor] = { totalCodeLines: 0, totalAILines: 0, commits: 0 };
+            }
+            contributorData[commit.contributor].totalCodeLines += commit.codeLines;
+            contributorData[commit.contributor].totalAILines += commit.aiLines;
+            contributorData[commit.contributor].commits += 1;
         });
 
         // Calculate AI percentages and prepare data for chart
