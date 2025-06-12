@@ -313,6 +313,10 @@ class GitHubStatsDashboard {
                 let include = true;
 
                 if (teamFilter && row.Team !== teamFilter) include = false;
+                // Apply contributor filter if available in time series data
+                if (contributorFilter && row.Contributor && row.Contributor !== contributorFilter) include = false;
+                // Apply repository filter if available in time series data  
+                if (repositoryFilter && row.Repository && row.Repository !== repositoryFilter) include = false;
                 if (startDate && row.Date < startDate) include = false;
                 if (endDate && row.Date > endDate) include = false;
 
@@ -323,7 +327,17 @@ class GitHubStatsDashboard {
         // Filter team performance data
         if (this.teamPerformanceData) {
             this.filteredData.teamPerformance = this.teamPerformanceData.filter(row => {
-                return !teamFilter || row.Team === teamFilter;
+                let include = true;
+
+                if (teamFilter && row.Team !== teamFilter) include = false;
+                // Apply contributor filter if available in team performance data
+                if (contributorFilter && row.Contributor && row.Contributor !== contributorFilter) include = false;
+                // Apply repository filter if available in team performance data
+                if (repositoryFilter && row.Repository && row.Repository !== repositoryFilter) include = false;
+                if (startDate && row.Date && row.Date < startDate) include = false;
+                if (endDate && row.Date && row.Date > endDate) include = false;
+
+                return include;
             });
         }
 
@@ -332,6 +346,7 @@ class GitHubStatsDashboard {
             this.filteredData.repositoryActivity = this.repositoryActivityData.filter(row => {
                 let include = true;
 
+                if (teamFilter && row.Team && row.Team !== teamFilter) include = false;
                 if (contributorFilter && row.Author !== contributorFilter) include = false;
                 if (repositoryFilter && row.Repository !== repositoryFilter) include = false;
                 if (startDate && row.Date < startDate) include = false;
@@ -480,29 +495,56 @@ class GitHubStatsDashboard {
     calculateSummaryStats() {
         const stats = {};
 
-        // Calculate stats from time series data
-        if (this.filteredData.timeSeries && this.filteredData.timeSeries.length > 0) {
+        // Prioritize daily batch data for accurate filtered calculations
+        if (this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0) {
+            const data = this.filteredData.dailyBatches;
+
+            // Calculate totals from individual commits
+            stats.totalCodeLines = data.reduce((sum, row) => sum + (parseInt(row.CodeLines) || 0), 0);
+            stats.totalAILines = data.reduce((sum, row) => sum + (parseInt(row.AILines) || 0), 0);
+            stats.totalCommits = data.length; // Each row is one commit
+            stats.activeContributors = new Set(data.map(row => row.Team)).size;
+            stats.repositories = new Set(data.map(row => row.Repository)).size;
+            stats.uniqueAuthors = new Set(data.map(row => row.Contributor)).size;
+
+            if (stats.totalCodeLines > 0) {
+                stats.aiPercentage = (stats.totalAILines / stats.totalCodeLines * 100);
+            } else {
+                stats.aiPercentage = 0;
+            }
+        }
+        // Fallback to time series data if daily batches not available
+        else if (this.filteredData.timeSeries && this.filteredData.timeSeries.length > 0) {
             const data = this.filteredData.timeSeries;
-            stats.totalCodeLines = data.reduce((sum, row) => sum + (row.CumulativeCodeLines || 0), 0);
-            stats.totalAILines = data.reduce((sum, row) => sum + (row.CumulativeAILines || 0), 0);
+
+            // Use daily data, not cumulative, for filtered views
+            stats.totalCodeLines = data.reduce((sum, row) => sum + (row.DailyCodeLines || 0), 0);
+            stats.totalAILines = data.reduce((sum, row) => sum + (row.DailyAILines || 0), 0);
             stats.totalCommits = data.reduce((sum, row) => sum + (row.CommitCount || 0), 0);
             stats.activeContributors = new Set(data.map(row => row.Team)).size;
 
             if (stats.totalCodeLines > 0) {
                 stats.aiPercentage = (stats.totalAILines / stats.totalCodeLines * 100);
+            } else {
+                stats.aiPercentage = 0;
+            }
+
+            // Try to get repository and contributor stats from repository activity data
+            if (this.filteredData.repositoryActivity && this.filteredData.repositoryActivity.length > 0) {
+                const repoData = this.filteredData.repositoryActivity;
+                stats.repositories = new Set(repoData.map(row => row.Repository)).size;
+                stats.uniqueAuthors = new Set(repoData.map(row => row.Author)).size;
             }
         }
 
-        // Add repository and contributor stats from daily batches
-        if (this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0) {
-            const data = this.filteredData.dailyBatches;
-            stats.repositories = new Set(data.map(row => row.Repository)).size;
-            stats.uniqueAuthors = new Set(data.map(row => row.Contributor)).size;
-        } else if (this.filteredData.repositoryActivity && this.filteredData.repositoryActivity.length > 0) {
-            const data = this.filteredData.repositoryActivity;
-            stats.repositories = new Set(data.map(row => row.Repository)).size;
-            stats.uniqueAuthors = new Set(data.map(row => row.Author)).size;
-        }
+        // Ensure all stats have default values
+        stats.totalCodeLines = stats.totalCodeLines || 0;
+        stats.totalAILines = stats.totalAILines || 0;
+        stats.totalCommits = stats.totalCommits || 0;
+        stats.activeContributors = stats.activeContributors || 0;
+        stats.aiPercentage = stats.aiPercentage || 0;
+        stats.repositories = stats.repositories || 0;
+        stats.uniqueAuthors = stats.uniqueAuthors || 0;
 
         return stats;
     }
@@ -540,16 +582,42 @@ class GitHubStatsDashboard {
         });
         this.charts = {};
 
-        // Render AI-focused charts
-        if (this.filteredData.timeSeries && this.filteredData.timeSeries.length > 0) {
-            this.renderAITrendChart(chartsContainer);
+        let hasTimeSeriesData = this.filteredData.timeSeries && this.filteredData.timeSeries.length > 0;
+        let hasDailyBatchData = this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0;
+
+        // Render AI-focused charts based on available filtered data
+        if (hasTimeSeriesData || hasDailyBatchData) {
+            this.renderAITrendChart(chartsContainer); // Can use either data source
+        }
+
+        if (hasTimeSeriesData) {
             this.renderAITeamsChart(chartsContainer);
+        }
+
+        // AI Days chart can use either time series or daily batch data
+        if (hasTimeSeriesData || hasDailyBatchData) {
             this.renderAIDaysChart(chartsContainer);
         }
 
-        if (this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0) {
+        if (hasDailyBatchData) {
             this.renderAIReposChart(chartsContainer);
             this.renderAIContributorsChart(chartsContainer);
+        }
+
+        // Show message if no data is available for any charts
+        if (!hasTimeSeriesData && !hasDailyBatchData) {
+            chartsContainer.innerHTML = `
+                <div class="chart-container">
+                    <h3>📊 No Chart Data Available</h3>
+                    <p>No data matches the current filter criteria. Try adjusting your filters to see charts.</p>
+                    <ul style="text-align: left; margin: 1rem 0;">
+                        <li>🏢 Try selecting "All Teams" if you have a team filter</li>
+                        <li>👥 Try selecting "All Contributors" if you have a contributor filter</li>
+                        <li>📦 Try selecting "All Repositories" if you have a repository filter</li>
+                        <li>📅 Try expanding your date range</li>
+                    </ul>
+                </div>
+            `;
         }
     }
 
@@ -563,25 +631,72 @@ class GitHubStatsDashboard {
             </div>
         `;
         return container;
-    }
-
-    renderAITrendChart(container) {
+    } renderAITrendChart(container) {
         const chartContainer = this.createChartContainer('🤖 AI Assistance Trend');
         container.appendChild(chartContainer);
 
         const canvas = chartContainer.querySelector('canvas');
         const ctx = canvas.getContext('2d');
 
-        const data = this.filteredData.timeSeries;
-        const groupedData = this.groupDataByDate(data);
+        // Check if contributor or repository filter is active
+        const contributorFilter = document.getElementById('contributorFilter').value;
+        const repositoryFilter = document.getElementById('repositoryFilter').value;
 
-        const dates = Object.keys(groupedData).sort();
-        const aiPercentages = dates.map(date => {
-            const dayData = groupedData[date];
-            const totalCode = dayData.reduce((sum, row) => sum + (row.DailyCodeLines || 0), 0);
-            const totalAI = dayData.reduce((sum, row) => sum + (row.DailyAILines || 0), 0);
-            return totalCode > 0 ? (totalAI / totalCode * 100) : 0;
-        });
+        let data, dates, aiPercentages;
+
+        // Use daily batch data if contributor/repository filtering is active or if time series is not available
+        if ((contributorFilter || repositoryFilter) && this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0) {
+            data = this.filteredData.dailyBatches;
+
+            // Group daily batch data by date
+            const groupedData = {};
+            data.forEach(row => {
+                const date = row.Date;
+                if (!groupedData[date]) {
+                    groupedData[date] = [];
+                }
+                groupedData[date].push(row);
+            });
+
+            dates = Object.keys(groupedData).sort();
+
+            if (dates.length === 0) {
+                chartContainer.innerHTML = '<h3>🤖 AI Assistance Trend</h3><p>No date data available for current filters</p>';
+                return;
+            }
+
+            // Calculate AI percentages from daily batch data
+            aiPercentages = dates.map(date => {
+                const dayData = groupedData[date];
+                const totalCode = dayData.reduce((sum, row) => sum + (parseInt(row.CodeLines) || 0), 0);
+                const totalAI = dayData.reduce((sum, row) => sum + (parseInt(row.AILines) || 0), 0);
+                return totalCode > 0 ? (totalAI / totalCode * 100) : 0;
+            });
+        }
+        // Fallback to time series data
+        else if (this.filteredData.timeSeries && this.filteredData.timeSeries.length > 0) {
+            data = this.filteredData.timeSeries;
+
+            const groupedData = this.groupDataByDate(data);
+            dates = Object.keys(groupedData).sort();
+
+            if (dates.length === 0) {
+                chartContainer.innerHTML = '<h3>🤖 AI Assistance Trend</h3><p>No date data available for current filters</p>';
+                return;
+            }
+
+            // Calculate AI percentages from time series data
+            aiPercentages = dates.map(date => {
+                const dayData = groupedData[date];
+                const totalCode = dayData.reduce((sum, row) => sum + (row.DailyCodeLines || 0), 0);
+                const totalAI = dayData.reduce((sum, row) => sum + (row.DailyAILines || 0), 0);
+                return totalCode > 0 ? (totalAI / totalCode * 100) : 0;
+            });
+        }
+        else {
+            chartContainer.innerHTML = '<h3>🤖 AI Assistance Trend</h3><p>No data available for current filters</p>';
+            return;
+        }
 
         this.charts.aiTrend = new Chart(ctx, {
             type: 'line',
@@ -632,6 +747,28 @@ class GitHubStatsDashboard {
         const ctx = canvas.getContext('2d');
 
         const data = this.filteredData.timeSeries;
+        const teamFilter = document.getElementById('teamFilter').value;
+
+        if (!data || data.length === 0) {
+            chartContainer.innerHTML = '<h3>🏢 AI Teams</h3><p>No team data available for current filters</p>';
+            return;
+        }
+
+        // If a specific team is filtered, show a different visualization
+        if (teamFilter) {
+            chartContainer.innerHTML = `
+                <h3>🏢 AI Teams</h3>
+                <div style="padding: 2rem; text-align: center;">
+                    <p><strong>Filtered by Team:</strong> ${teamFilter}</p>
+                    <p>Use "All Teams" to see team comparison chart</p>
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 8px;">
+                        📊 Other charts show ${teamFilter}'s specific metrics
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
         const teamData = {};
 
         // Calculate AI assistance percentage per team
@@ -649,7 +786,13 @@ class GitHubStatsDashboard {
                 team,
                 aiPercentage: stats.totalCodeLines > 0 ? (stats.totalAILines / stats.totalCodeLines * 100) : 0
             }))
+            .filter(item => item.aiPercentage > 0 || Object.keys(teamData).length <= 5) // Show all teams if few teams, or only teams with AI activity
             .sort((a, b) => b.aiPercentage - a.aiPercentage);
+
+        if (teamAIData.length === 0) {
+            chartContainer.innerHTML = '<h3>🏢 AI Teams</h3><p>No team AI data available for current filters</p>';
+            return;
+        }
 
         const teams = teamAIData.map(item => item.team);
         const aiPercentages = teamAIData.map(item => item.aiPercentage);
@@ -799,10 +942,11 @@ class GitHubStatsDashboard {
         const colors = this.generateColors(contributors.length);
 
         this.charts.aiContributors = new Chart(ctx, {
-            type: 'pie',
+            type: 'bar',
             data: {
-                labels: contributors.map((author, index) => `${author} (${contributorAIData[index].aiPercentage.toFixed(1)}%)`),
+                labels: contributors,
                 datasets: [{
+                    label: 'AI Assistance %',
                     data: aiPercentages,
                     backgroundColor: colors.map(color => color + '80'),
                     borderColor: colors,
@@ -812,15 +956,32 @@ class GitHubStatsDashboard {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                indexAxis: 'y', // This makes it a horizontal bar chart
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'AI Assistance %'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Contributors'
+                        }
+                    }
+                },
                 plugins: {
                     legend: {
-                        position: 'right'
+                        display: false // Hide legend since we only have one dataset
                     },
                     tooltip: {
                         callbacks: {
                             label: function (context) {
                                 const item = contributorAIData[context.dataIndex];
-                                return `${context.label}: ${context.parsed.toFixed(1)}% AI (${item.commits} commits)`;
+                                return `${item.aiPercentage.toFixed(1)}% AI assistance (${item.commits} commits)`;
                             }
                         }
                     }
@@ -836,7 +997,19 @@ class GitHubStatsDashboard {
         const canvas = chartContainer.querySelector('canvas');
         const ctx = canvas.getContext('2d');
 
-        const data = this.filteredData.timeSeries;
+        // Check if team filter is active and prefer daily batch data for accuracy
+        const teamFilter = document.getElementById('teamFilter').value;
+        let data;
+
+        if (teamFilter && this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0) {
+            data = this.filteredData.dailyBatches;
+        } else if (this.filteredData.timeSeries && this.filteredData.timeSeries.length > 0) {
+            data = this.filteredData.timeSeries;
+        } else {
+            chartContainer.innerHTML = '<h3>📅 AI Days</h3><p>No data available for current filters</p>';
+            return;
+        }
+
         const dayAIData = {
             'Monday': { totalCode: 0, totalAI: 0 },
             'Tuesday': { totalCode: 0, totalAI: 0 },
@@ -854,11 +1027,25 @@ class GitHubStatsDashboard {
                 const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
 
                 if (dayAIData[dayOfWeek]) {
-                    dayAIData[dayOfWeek].totalCode += row.DailyCodeLines || 0;
-                    dayAIData[dayOfWeek].totalAI += row.DailyAILines || 0;
+                    if (data === this.filteredData.dailyBatches) {
+                        // Use daily batch data (individual commits)
+                        dayAIData[dayOfWeek].totalCode += parseInt(row.CodeLines) || 0;
+                        dayAIData[dayOfWeek].totalAI += parseInt(row.AILines) || 0;
+                    } else {
+                        // Use time series data (aggregated daily data)
+                        dayAIData[dayOfWeek].totalCode += row.DailyCodeLines || 0;
+                        dayAIData[dayOfWeek].totalAI += row.DailyAILines || 0;
+                    }
                 }
             }
         });
+
+        // Check if we have any meaningful data
+        const totalCodeAllDays = Object.values(dayAIData).reduce((sum, day) => sum + day.totalCode, 0);
+        if (totalCodeAllDays === 0) {
+            chartContainer.innerHTML = '<h3>📅 AI Days</h3><p>No code activity data available for current filters</p>';
+            return;
+        }
 
         // Calculate AI percentage for each day
         const dayLabels = Object.keys(dayAIData);

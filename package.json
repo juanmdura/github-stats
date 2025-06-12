@@ -11,6 +11,7 @@
     "dev": "node -r dotenv/config src/index.js",
     "web": "node web/server.js",
     "dashboard": "node web/server.js",
+    "consolidate": "node src/consolidate-daily-batches.js",
     "test": "jest",
     "test:unit": "jest tests/unit-tests",
     "test:integration": "jest tests/integration-tests",
@@ -19,7 +20,9 @@
   },
   "dependencies": {
     "axios": "^1.9.0",
-    "dotenv": "^16.5.0"
+    "dotenv": "^16.5.0",
+    "csv-parser": "^3.0.0",
+    "csv-writer": "^1.6.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
