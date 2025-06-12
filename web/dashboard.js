@@ -1072,9 +1072,9 @@ class GitHubStatsDashboard {
                 commits: stats.commits,
                 totalCodeLines: stats.totalCodeLines
             }))
-            .filter(item => item.commits >= 3) // Only include contributors with meaningful activity
+            .filter(item => item.commits >= 1) // Include all contributors with at least 1 commit
             .sort((a, b) => b.aiPercentage - a.aiPercentage)
-            .slice(0, 10); // Top 10 contributors
+            .slice(0, 15); // Show top 15 contributors to accommodate more entries
 
         if (contributorAIData.length === 0) {
             chartContainer.innerHTML = '<h3>AI Contributors</h3><p>No contributor data available</p>';
