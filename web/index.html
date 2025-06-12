@@ -60,19 +60,51 @@
             color: #2d3748;
         }
 
-        .chart-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .chart-container {
+        .dashboard-section {
             background: rgba(255, 255, 255, 0.95);
-            padding: 1.5rem;
+            padding: 2rem;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
+            margin-bottom: 2rem;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .section-header h2 {
+            color: #2d3748;
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .section-content {
+            display: grid;
+            gap: 2rem;
+        }
+
+        .section-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .section-charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 2rem;
+        }
+
+        .chart-container {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
         }
 
         .chart-container h3 {
@@ -86,11 +118,58 @@
             height: 400px;
         }
 
+        .metric-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+
+        .metric-card h4 {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-card .value {
+            color: #2d3748;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        /* Legacy support for existing stats */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
             margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .stat-card h4 {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .value {
+            color: #2d3748;
+            font-size: 2rem;
+            font-weight: bold;
         }
 
         .stat-card {
@@ -165,23 +244,9 @@
             }
         }
 
-        .date-range {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .date-range input {
-            padding: 0.75rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            background: white;
-        }
-
         .filters-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
             margin-bottom: 1rem;
         }
@@ -197,7 +262,8 @@
             color: #4a5568;
         }
 
-        .filter-group select {
+        .filter-group select,
+        .filter-group input {
             padding: 0.75rem;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
@@ -343,8 +409,12 @@
         }
 
         @media (max-width: 768px) {
-            .chart-grid {
+            .section-charts {
                 grid-template-columns: 1fr;
+            }
+
+            .section-metrics {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             }
 
             .container {
@@ -363,10 +433,6 @@
                 grid-template-columns: 1fr;
             }
 
-            .date-range {
-                grid-template-columns: 1fr;
-            }
-
             .table-stats {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -376,14 +442,12 @@
 
 <body>
     <div class="header">
-        <h1>📊 GitHub Stats Dashboard</h1>
-        <p>Visualize your team's coding productivity and AI assistance metrics</p>
+        <h1>GitHub AI Stats</h1>
+        <p>Engineering AI assistance metrics</p>
     </div>
 
     <div class="container">
         <div class="controls">
-            <h3>🎛️ Filters</h3>
-
             <div class="filters-grid">
                 <div class="filter-group">
                     <label for="teamFilter">Filter by Team:</label>
@@ -405,14 +469,13 @@
                         <option value="">All Repositories</option>
                     </select>
                 </div>
-            </div>
 
-            <div class="date-range">
-                <div>
+                <div class="filter-group">
                     <label for="startDate">Start Date:</label>
                     <input type="date" id="startDate" />
                 </div>
-                <div>
+
+                <div class="filter-group">
                     <label for="endDate">End Date:</label>
                     <input type="date" id="endDate" />
                 </div>
@@ -426,12 +489,53 @@
             <p>Loading dashboard and detecting CSV files...</p>
         </div>
 
-        <div id="statsGrid" class="stats-grid"></div>
+        <!-- Lines of Code Section -->
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2>AI Lines of Code</h2>
+            </div>
+            <div class="section-content">
+                <div class="section-metrics" id="locMetrics">
+                    <!-- Total LOC, AI-Assisted LOC, AI Assistance % -->
+                </div>
+                <div class="section-charts" id="locCharts">
+                    <!-- AI Trend chart -->
+                </div>
+            </div>
+        </div>
 
-        <div id="chartsContainer" class="chart-grid"></div>
+        <!-- Teams & Contributors Section -->
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2>Teams & Contributors</h2>
+            </div>
+            <div class="section-content">
+                <div class="section-metrics" id="teamMetrics">
+                    <!-- Teams, Contributors -->
+                </div>
+                <div class="section-charts" id="teamCharts">
+                    <!-- AI Teams, AI Contributors charts -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Repositories & Commits Section -->
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2>Repositories & Commits</h2>
+            </div>
+            <div class="section-content">
+                <div class="section-metrics" id="repoMetrics">
+                    <!-- Repositories, Commits -->
+                </div>
+                <div class="section-charts" id="repoCharts">
+                    <!-- AI Repos, AI Days charts -->
+                </div>
+            </div>
+        </div>
 
         <div id="validationTable" class="validation-table" style="display: none;">
-            <h3>📋 Data Validation Table</h3>
+            <h3>Daily Contributions</h3>
             <div class="table-container">
                 <table class="data-table">
                     <thead>
@@ -456,7 +560,7 @@
         </div>
     </div>
 
-    <script src="dashboard.js?v=1.8"></script>
+    <script src="dashboard.js?v=2.1"></script>
 </body>
 
 </html>

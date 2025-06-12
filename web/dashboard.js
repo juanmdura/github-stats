@@ -476,19 +476,57 @@ class GitHubStatsDashboard {
     }
 
     renderStats() {
-        const statsGrid = document.getElementById('statsGrid');
-        statsGrid.innerHTML = '';
+        // Clear all section metrics containers
+        const locMetrics = document.getElementById('locMetrics');
+        const teamMetrics = document.getElementById('teamMetrics');
+        const repoMetrics = document.getElementById('repoMetrics');
+
+        locMetrics.innerHTML = '';
+        teamMetrics.innerHTML = '';
+        repoMetrics.innerHTML = '';
 
         const stats = this.calculateSummaryStats();
 
-        Object.entries(stats).forEach(([key, value]) => {
-            const statCard = document.createElement('div');
-            statCard.className = 'stat-card';
-            statCard.innerHTML = `
-                <h4>${this.formatStatLabel(key)}</h4>
-                <div class="value">${this.formatStatValue(key, value)}</div>
-            `;
-            statsGrid.appendChild(statCard);
+        // Lines of Code section metrics
+        const locStats = ['totalCodeLines', 'totalAILines', 'aiPercentage'];
+        locStats.forEach(statKey => {
+            if (stats.hasOwnProperty(statKey)) {
+                const statCard = document.createElement('div');
+                statCard.className = 'metric-card';
+                statCard.innerHTML = `
+                    <h4>${this.formatStatLabel(statKey)}</h4>
+                    <div class="value">${this.formatStatValue(statKey, stats[statKey])}</div>
+                `;
+                locMetrics.appendChild(statCard);
+            }
+        });
+
+        // Teams & Contributors section metrics
+        const teamStats = ['activeContributors', 'uniqueAuthors'];
+        teamStats.forEach(statKey => {
+            if (stats.hasOwnProperty(statKey)) {
+                const statCard = document.createElement('div');
+                statCard.className = 'metric-card';
+                statCard.innerHTML = `
+                    <h4>${this.formatStatLabel(statKey)}</h4>
+                    <div class="value">${this.formatStatValue(statKey, stats[statKey])}</div>
+                `;
+                teamMetrics.appendChild(statCard);
+            }
+        });
+
+        // Repositories & Commits section metrics
+        const repoStats = ['repositories', 'totalCommits'];
+        repoStats.forEach(statKey => {
+            if (stats.hasOwnProperty(statKey)) {
+                const statCard = document.createElement('div');
+                statCard.className = 'metric-card';
+                statCard.innerHTML = `
+                    <h4>${this.formatStatLabel(statKey)}</h4>
+                    <div class="value">${this.formatStatValue(statKey, stats[statKey])}</div>
+                `;
+                repoMetrics.appendChild(statCard);
+            }
         });
     }
 
@@ -573,8 +611,14 @@ class GitHubStatsDashboard {
     }
 
     renderCharts() {
-        const chartsContainer = document.getElementById('chartsContainer');
-        chartsContainer.innerHTML = '';
+        // Clear all section chart containers
+        const locCharts = document.getElementById('locCharts');
+        const teamCharts = document.getElementById('teamCharts');
+        const repoCharts = document.getElementById('repoCharts');
+
+        locCharts.innerHTML = '';
+        teamCharts.innerHTML = '';
+        repoCharts.innerHTML = '';
 
         // Destroy existing charts
         Object.values(this.charts).forEach(chart => {
@@ -585,31 +629,52 @@ class GitHubStatsDashboard {
         let hasTimeSeriesData = this.filteredData.timeSeries && this.filteredData.timeSeries.length > 0;
         let hasDailyBatchData = this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0;
 
-        // Render AI-focused charts based on available filtered data
+        // Lines of Code section: AI Trend chart
         if (hasTimeSeriesData || hasDailyBatchData) {
-            this.renderAITrendChart(chartsContainer); // Can use either data source
+            this.renderAITrendChart(locCharts);
+        } else {
+            locCharts.innerHTML = `
+                <div class="chart-container">
+                    <h3>AI Assistance Trend</h3>
+                    <p>No trend data available with current filters. Try adjusting your filters to see the AI assistance trend over time.</p>
+                </div>
+            `;
         }
 
+        // Teams & Contributors section: AI Teams and AI Contributors charts
         if (hasTimeSeriesData) {
-            this.renderAITeamsChart(chartsContainer);
-        }
-
-        // AI Days chart can use either time series or daily batch data
-        if (hasTimeSeriesData || hasDailyBatchData) {
-            this.renderAIDaysChart(chartsContainer);
+            this.renderAITeamsChart(teamCharts);
+        } else {
+            teamCharts.innerHTML = `
+                <div class="chart-container">
+                    <h3>AI Teams</h3>
+                    <p>No team data available with current filters. Team charts require time series data.</p>
+                </div>
+            `;
         }
 
         if (hasDailyBatchData) {
-            this.renderAIReposChart(chartsContainer);
-            this.renderAIContributorsChart(chartsContainer);
+            this.renderAIContributorsChart(teamCharts);
         }
 
-        // Show message if no data is available for any charts
-        if (!hasTimeSeriesData && !hasDailyBatchData) {
-            chartsContainer.innerHTML = `
+        // Repositories & Commits section: AI Repos chart
+        if (hasDailyBatchData) {
+            this.renderAIReposChart(repoCharts);
+        } else {
+            repoCharts.innerHTML = `
                 <div class="chart-container">
-                    <h3>📊 No Chart Data Available</h3>
-                    <p>No data matches the current filter criteria. Try adjusting your filters to see charts.</p>
+                    <h3>AI Repositories</h3>
+                    <p>No repository data available with current filters. Repository charts require daily batch data.</p>
+                </div>
+            `;
+        }
+
+        // Show comprehensive message if no data is available at all
+        if (!hasTimeSeriesData && !hasDailyBatchData) {
+            const noDataMessage = `
+                <div class="chart-container">
+                    <h3>📊 No Data Available</h3>
+                    <p>No data matches the current filter criteria. Try adjusting your filters:</p>
                     <ul style="text-align: left; margin: 1rem 0;">
                         <li>🏢 Try selecting "All Teams" if you have a team filter</li>
                         <li>👥 Try selecting "All Contributors" if you have a contributor filter</li>
@@ -618,6 +683,9 @@ class GitHubStatsDashboard {
                     </ul>
                 </div>
             `;
+            locCharts.innerHTML = noDataMessage;
+            teamCharts.innerHTML = noDataMessage;
+            repoCharts.innerHTML = noDataMessage;
         }
     }
 
@@ -632,7 +700,7 @@ class GitHubStatsDashboard {
         `;
         return container;
     } renderAITrendChart(container) {
-        const chartContainer = this.createChartContainer('🤖 AI Assistance Trend');
+        const chartContainer = this.createChartContainer('AI Assistance Trend');
         container.appendChild(chartContainer);
 
         const canvas = chartContainer.querySelector('canvas');
@@ -740,7 +808,7 @@ class GitHubStatsDashboard {
     }
 
     renderAITeamsChart(container) {
-        const chartContainer = this.createChartContainer('🏢 AI Teams');
+        const chartContainer = this.createChartContainer('AI Teams');
         container.appendChild(chartContainer);
 
         const canvas = chartContainer.querySelector('canvas');
@@ -750,14 +818,14 @@ class GitHubStatsDashboard {
         const teamFilter = document.getElementById('teamFilter').value;
 
         if (!data || data.length === 0) {
-            chartContainer.innerHTML = '<h3>🏢 AI Teams</h3><p>No team data available for current filters</p>';
+            chartContainer.innerHTML = '<h3>AI Teams</h3><p>No team data available for current filters</p>';
             return;
         }
 
         // If a specific team is filtered, show a different visualization
         if (teamFilter) {
             chartContainer.innerHTML = `
-                <h3>🏢 AI Teams</h3>
+                <h3>AI Teams</h3>
                 <div style="padding: 2rem; text-align: center;">
                     <p><strong>Filtered by Team:</strong> ${teamFilter}</p>
                     <p>Use "All Teams" to see team comparison chart</p>
@@ -790,7 +858,7 @@ class GitHubStatsDashboard {
             .sort((a, b) => b.aiPercentage - a.aiPercentage);
 
         if (teamAIData.length === 0) {
-            chartContainer.innerHTML = '<h3>🏢 AI Teams</h3><p>No team AI data available for current filters</p>';
+            chartContainer.innerHTML = '<h3>AI Teams</h3><p>No team AI data available for current filters</p>';
             return;
         }
 
@@ -829,7 +897,7 @@ class GitHubStatsDashboard {
     }
 
     renderAIReposChart(container) {
-        const chartContainer = this.createChartContainer('📦 AI Repos');
+        const chartContainer = this.createChartContainer('AI Repos');
         container.appendChild(chartContainer);
 
         const canvas = chartContainer.querySelector('canvas');
@@ -861,7 +929,7 @@ class GitHubStatsDashboard {
             .slice(0, 8); // Top 8 repos
 
         if (repoAIData.length === 0) {
-            chartContainer.innerHTML = '<h3>📦 AI Repos</h3><p>No repository data available</p>';
+            chartContainer.innerHTML = '<h3>AI Repos</h3><p>No repository data available</p>';
             return;
         }
 
@@ -901,7 +969,7 @@ class GitHubStatsDashboard {
     }
 
     renderAIContributorsChart(container) {
-        const chartContainer = this.createChartContainer('👥 AI Contributors');
+        const chartContainer = this.createChartContainer('AI Contributors');
         container.appendChild(chartContainer);
 
         const canvas = chartContainer.querySelector('canvas');
@@ -933,7 +1001,7 @@ class GitHubStatsDashboard {
             .slice(0, 10); // Top 10 contributors
 
         if (contributorAIData.length === 0) {
-            chartContainer.innerHTML = '<h3>👥 AI Contributors</h3><p>No contributor data available</p>';
+            chartContainer.innerHTML = '<h3>AI Contributors</h3><p>No contributor data available</p>';
             return;
         }
 
@@ -982,107 +1050,6 @@ class GitHubStatsDashboard {
                             label: function (context) {
                                 const item = contributorAIData[context.dataIndex];
                                 return `${item.aiPercentage.toFixed(1)}% AI assistance (${item.commits} commits)`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    renderAIDaysChart(container) {
-        const chartContainer = this.createChartContainer('📅 AI Days');
-        container.appendChild(chartContainer);
-
-        const canvas = chartContainer.querySelector('canvas');
-        const ctx = canvas.getContext('2d');
-
-        // Check if team filter is active and prefer daily batch data for accuracy
-        const teamFilter = document.getElementById('teamFilter').value;
-        let data;
-
-        if (teamFilter && this.filteredData.dailyBatches && this.filteredData.dailyBatches.length > 0) {
-            data = this.filteredData.dailyBatches;
-        } else if (this.filteredData.timeSeries && this.filteredData.timeSeries.length > 0) {
-            data = this.filteredData.timeSeries;
-        } else {
-            chartContainer.innerHTML = '<h3>📅 AI Days</h3><p>No data available for current filters</p>';
-            return;
-        }
-
-        const dayAIData = {
-            'Monday': { totalCode: 0, totalAI: 0 },
-            'Tuesday': { totalCode: 0, totalAI: 0 },
-            'Wednesday': { totalCode: 0, totalAI: 0 },
-            'Thursday': { totalCode: 0, totalAI: 0 },
-            'Friday': { totalCode: 0, totalAI: 0 },
-            'Saturday': { totalCode: 0, totalAI: 0 },
-            'Sunday': { totalCode: 0, totalAI: 0 }
-        };
-
-        // Calculate AI assistance by day of week
-        data.forEach(row => {
-            if (row.Date) {
-                const date = new Date(row.Date);
-                const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
-
-                if (dayAIData[dayOfWeek]) {
-                    if (data === this.filteredData.dailyBatches) {
-                        // Use daily batch data (individual commits)
-                        dayAIData[dayOfWeek].totalCode += parseInt(row.CodeLines) || 0;
-                        dayAIData[dayOfWeek].totalAI += parseInt(row.AILines) || 0;
-                    } else {
-                        // Use time series data (aggregated daily data)
-                        dayAIData[dayOfWeek].totalCode += row.DailyCodeLines || 0;
-                        dayAIData[dayOfWeek].totalAI += row.DailyAILines || 0;
-                    }
-                }
-            }
-        });
-
-        // Check if we have any meaningful data
-        const totalCodeAllDays = Object.values(dayAIData).reduce((sum, day) => sum + day.totalCode, 0);
-        if (totalCodeAllDays === 0) {
-            chartContainer.innerHTML = '<h3>📅 AI Days</h3><p>No code activity data available for current filters</p>';
-            return;
-        }
-
-        // Calculate AI percentage for each day
-        const dayLabels = Object.keys(dayAIData);
-        const aiPercentages = dayLabels.map(day => {
-            const dayStats = dayAIData[day];
-            return dayStats.totalCode > 0 ? (dayStats.totalAI / dayStats.totalCode * 100) : 0;
-        });
-
-        this.charts.aiDays = new Chart(ctx, {
-            type: 'polarArea',
-            data: {
-                labels: dayLabels.map((day, index) => `${day} (${aiPercentages[index].toFixed(1)}%)`),
-                datasets: [{
-                    data: aiPercentages,
-                    backgroundColor: [
-                        'rgba(16, 185, 129, 0.8)', 'rgba(5, 150, 105, 0.8)', 'rgba(4, 120, 87, 0.8)',
-                        'rgba(6, 95, 70, 0.8)', 'rgba(6, 78, 59, 0.8)', 'rgba(2, 44, 34, 0.8)',
-                        'rgba(16, 185, 129, 0.6)'
-                    ],
-                    borderColor: [
-                        '#10B981', '#059669', '#047857', '#065F46',
-                        '#064E3B', '#022C22', '#10B981'
-                    ],
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                return `${context.label}: ${context.parsed.toFixed(1)}% AI assistance`;
                             }
                         }
                     }

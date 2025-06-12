@@ -1,35 +1,39 @@
 # 📊 GitHub Stats Web Dashboard
 
-A beautiful, interactive web dashboard to visualize your GitHub organization's coding productivity and AI assistance metrics.
+A beautiful, interactive web dashboard to visualize your GitHub organization's coding productivity and AI assistance metrics with organized sectioned layout.
 
 ## ✨ Features
 
-### 📈 AI-Focused Interactive Charts
-- **🤖 AI Assistance Trend** - Line chart showing AI usage over time
-- **🏢 AI Teams** - Pie chart showing AI assistance percentage per team
-- **📦 AI Repos** - Pie chart showing AI assistance per repository (using real data)
-- **👥 AI Contributors** - Pie chart showing AI assistance per contributor (using real data)
-- **📅 AI Days** - Polar area chart showing AI assistance by day of week
+### 🏗️ Organized Dashboard Sections
+
+The dashboard is organized into three logical sections for better data exploration:
+
+#### 📊 Lines of Code Analytics
+- **Key Metrics**: Total LOC, AI-Assisted LOC, AI Assistance %
+- **Chart**: AI Assistance Trend (line chart showing AI usage over time)
+
+#### 👥 Teams & Contributors
+- **Key Metrics**: Active Teams, Contributors
+- **Charts**: AI Teams (pie chart), AI Contributors (horizontal bar chart)
+
+#### 📦 Repositories & Commits  
+- **Key Metrics**: Repositories, Total Commits
+- **Charts**: AI Repositories (pie chart), AI Days (polar area chart by day of week)
 
 ### 🎛️ Advanced Filtering System
 - **Team Filtering** - Focus on specific teams
 - **Contributor Filtering** - Analyze individual contributor patterns
 - **Repository Filtering** - Deep-dive into specific repositories
 - **Date Range Selection** - Analyze custom time periods
-- **Real-time Updates** - Charts update instantly with filter changes
+- **Real-time Updates** - All sections update instantly with filter changes
 
 ### 📋 Data Validation Table
 - **Detailed Data View** - Comprehensive table showing all filtered data
-- **AI Percentage Validation** - Color-coded AI assistance levels
-- **Summary Statistics** - Total commits, contributors, repositories, and AI metrics
-- **Interactive Sorting** - Data sorted by date and AI percentage
+- **GitHub Integration** - Direct links to commits on GitHub
+- **AI Percentage Validation** - Color-coded AI assistance levels (Low/Medium/High)
+- **Sortable Columns** - Click headers to sort by any column
+- **Summary Statistics** - Real-time totals based on current filters
 - **Mobile Responsive** - Works perfectly on all device sizes
-
-### 📊 Key Metrics
-- Total code lines and AI-assisted lines
-- Commit counts and contributor statistics
-- Repository activity breakdown
-- AI assistance percentages with real data validation
 
 ## 🚀 Quick Start
 
