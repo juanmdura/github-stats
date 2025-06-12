@@ -18,7 +18,7 @@ The dashboard is organized into three logical sections for better data explorati
 
 #### 📦 Repositories & Commits  
 - **Key Metrics**: Repositories, Total Commits
-- **Charts**: AI Repositories (pie chart), AI Days (polar area chart by day of week)
+- **Chart**: AI Repositories (pie chart)
 
 ### 🎛️ Advanced Filtering System
 - **Team Filtering** - Focus on specific teams
